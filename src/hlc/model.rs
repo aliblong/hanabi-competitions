@@ -4,6 +4,7 @@ use futures::future::{ready, Ready};
 use sqlx::{PgPool, FromRow, Row};
 use sqlx::postgres::PgRow;
 use anyhow::Result;
+use sqlx::postgres::*;
 //use super::routes::CompetitionResultsQueryParams;
 
 // // this struct will use to receive user input
@@ -41,7 +42,7 @@ pub async fn find_competition_result_line_items(
     pool: &PgPool,
     query_where_clause: &str,
 ) -> Result<Vec<CompetitionResult>> {
-    let result = sqlx::query_as!(CompetitionResult, r#"
+    let result = sqlx::query_as::<sqlx::Postgres, CompetitionResult>(&format!(r#"
 with base_cte as (
     select
         competitions.id competition_id
@@ -50,7 +51,9 @@ with base_cte as (
       , games.id game_id
       , games.score
       , games.turns
-      , cast(rank() over(partition by seeds.id order by games.score desc, games.turns) as smallint) seed_rank
+      , cast(
+            rank() over(partition by seeds.id order by games.score desc, games.turns)
+        as smallint) seed_rank
       , cast(count(*) over(partition by seeds.id) as smallint) num_seed_participants
     from competitions
     join competition_seeds on competition_seeds.competition_id = competitions.id
@@ -62,7 +65,11 @@ mp_computed as (
         competition_id
       , seed_id
       , seed_name
-      , 2 * num_seed_participants - (cast(count(*) over(partition by seed_name, seed_rank) as smallint) - 1) - 2 * seed_rank as seed_matchpoints
+      , (
+            2 * num_seed_participants
+            - (cast(count(*) over(partition by seed_name, seed_rank) as smallint) - 1)
+            - 2 * seed_rank
+        ) as seed_matchpoints
       , num_seed_participants
       , game_id
       , score
@@ -73,7 +80,10 @@ mp_agg as (
     select
         competition_id
       , sum(seed_matchpoints) over(partition by competition_id, players.id) as sum_MP
-      , 2 * (sum(num_seed_participants) over(partition by competition_id) - count(seed_id) over(partition by competition_id)) as max_MP
+      , 2 * (
+            sum(num_seed_participants) over(partition by competition_id)
+            - count(seed_id) over(partition by competition_id)
+        ) as max_MP
       , players.name player_name
       , seed_id
       , seed_name
@@ -101,18 +111,22 @@ from mp_agg
 join competition_names on competition_id = competition_names.id
 left join seed_characters on mp_agg.seed_id = seed_characters.character_id
 left join characters on seed_characters.character_id = characters.id
+-- intentional sql injection, so make sure account doesn't have any more
+-- privileges than select
+where {}
 order by
     competition_name desc
   , sum_MP desc
   , seed_name
   , game_id
   , player_name
-        "#)
+        "#, query_where_clause))
         .fetch_all(&*pool)
         .await?;
     Ok(result)
 }
 
+#[derive(sqlx::FromRow)]
 struct CompetitionResult {
     competition_name: String,
     final_rank: i64,
