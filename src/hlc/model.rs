@@ -1,12 +1,14 @@
-use serde::{Serialize, Deserialize};
+use serde;
 use actix_web::{HttpResponse, HttpRequest, Responder, Error};
 use futures::future::{ready, Ready};
 use sqlx::{PgPool, FromRow, Row};
 use sqlx::postgres::PgRow;
 use anyhow::Result;
 use sqlx::postgres::*;
+use chrono;
 //use super::routes::CompetitionResultsQueryParams;
 
+pub type UtcDateTime = chrono::DateTime<chrono::offset::Utc>;
 // // this struct will use to receive user input
 // #[derive(Serialize, Deserialize)]
 // pub struct TodoRequest {
@@ -40,105 +42,56 @@ use sqlx::postgres::*;
 
 pub async fn find_competition_result_line_items(
     pool: &PgPool,
-    query_where_clause: &str,
+    query_where_clause: Option<String>,
 ) -> Result<Vec<CompetitionResult>> {
+    let clause_to_insert = {
+        if let Some(clause) = query_where_clause {
+            format!("where {}", clause)
+        } else {
+            "".to_owned()
+        }
+    };
     let result = sqlx::query_as::<sqlx::Postgres, CompetitionResult>(&format!(r#"
-with base_cte as (
-    select
-        competitions.id competition_id
-      , seeds.id seed_id
-      , seeds.name seed_name
-      , games.id game_id
-      , games.score
-      , games.turns
-      , cast(
-            rank() over(partition by seeds.id order by games.score desc, games.turns)
-        as smallint) seed_rank
-      , cast(count(*) over(partition by seeds.id) as smallint) num_seed_participants
-    from competitions
-    join competition_seeds on competition_seeds.competition_id = competitions.id
-    join seeds on competition_seeds.seed_id = seeds.id
-    join games on seeds.id = games.seed_id
-),
-mp_computed as (
-    select
-        competition_id
-      , seed_id
-      , seed_name
-      , (
-            2 * num_seed_participants
-            - (cast(count(*) over(partition by seed_name, seed_rank) as smallint) - 1)
-            - 2 * seed_rank
-        ) as seed_matchpoints
-      , num_seed_participants
-      , game_id
-      , score
-      , turns
-    from base_cte
-),
-mp_agg as (
-    select
-        competition_id
-      , sum(seed_matchpoints) over(partition by competition_id, players.id) as sum_MP
-      , 2 * (
-            sum(num_seed_participants) over(partition by competition_id)
-            - count(seed_id) over(partition by competition_id)
-        ) as max_MP
-      , players.name player_name
-      , seed_id
-      , seed_name
-      , seed_matchpoints
-      , game_id
-      , score
-      , turns
-    from mp_computed
-    join game_players using(game_id)
-    join players on game_players.player_id = players.id
-)
-select
-    competition_names.name competition_name
-  , rank() over(partition by competition_id order by sum_MP) final_rank
-  , cast(sum_MP as real)/ max_MP as fractional_MP
-  , sum_MP
-  , player_name
-  , seed_name
-  , seed_matchpoints
-  , game_id
-  , score
-  , turns
-  , characters.name character_name
-from mp_agg
-join competition_names on competition_id = competition_names.id
-left join seed_characters on mp_agg.seed_id = seed_characters.character_id
-left join characters on seed_characters.character_id = characters.id
--- intentional sql injection, so make sure account doesn't have any more
--- privileges than select
-where {}
-order by
-    competition_name desc
-  , sum_MP desc
-  , seed_name
-  , game_id
-  , player_name
-        "#, query_where_clause))
+            -- intentional sql injection, so make sure account doesn't have any more
+            -- privileges than select
+            select *
+            from computed_competition_standings
+            {}
+            order by
+                competition_name desc
+              , sum_MP desc
+              , seed_name
+              , game_id
+              , player_name
+        "#, clause_to_insert))
         .fetch_all(&*pool)
         .await?;
     Ok(result)
 }
 
-#[derive(sqlx::FromRow)]
-struct CompetitionResult {
-    competition_name: String,
-    final_rank: i64,
-    fractional_mp: f64,
-    sum_mp: i64,
-    player_name: String,
-    seed_name: String,
-    seed_matchpoints: i32,
-    game_id: i64,
-    score: i16,
-    turns: i16,
-    character_name: Option<String>,
+pub async fn competition_results_to_line_item_json(results: Vec<CompetitionResult>) -> Result<String> {
+    let jsonified_results = serde_json::to_string(&results)?;
+    Ok(jsonified_results)
+}
+
+#[derive(sqlx::FromRow, serde::Serialize)]
+pub struct CompetitionResult {
+    pub competition_name: String,
+    pub final_rank: i64,
+    pub fractional_mp: f64,
+    pub sum_mp: i64,
+    pub player_name: String,
+    pub seed_name: String,
+    pub seed_matchpoints: i32,
+    pub game_id: i64,
+    pub score: i16,
+    pub turns: i16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub datetime_started: Option<UtcDateTime>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub datetime_ended: Option<UtcDateTime>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub character_name: Option<String>,
 }
 
 /*

@@ -1,5 +1,4 @@
-use crate::hlc::{Todo, TodoRequest};
-use actix_web::{delete, get, post, put, web, HttpResponse, Responder};
+use actix_web::{delete, get, post, put, web, HttpResponse, Responder, Error};
 use sqlx::PgPool;
 use serde::Deserialize;
 use serde_qs::actix::QsQuery;
@@ -36,15 +35,42 @@ use serde_qs::actix::QsQuery;
 //    }
 //}
 
-#[get("/competition")]
-async fn get_competition_results(
-    query_params: QsQuery<String>,
+pub struct CompetitionResultsQueryParams {
+    pub competition_name: String,
+    pub raw: Option<bool>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct ResultLineItemsQueryParams {
+    pub where_clause: Option<String>,
+    pub raw: Option<bool>,
+}
+
+#[get("/result_line_items")]
+async fn find_competition_results_with_arbitrary_where_clause(
+    query_params: QsQuery<ResultLineItemsQueryParams>,
     db_pool: web::Data<PgPool>
-) -> impl Responder {
-    let result = super::model::find_competition_result_line_items(db_pool.get_ref(), &query_params.into_inner()).await;
+) -> Result<HttpResponse, Error> {
+    let unwrapped_query_params = query_params.into_inner();
+    let where_clause = unwrapped_query_params.where_clause;
+    let raw_output_flag = unwrapped_query_params.raw;
+    let result = super::model::find_competition_result_line_items(
+        db_pool.get_ref(),
+        where_clause,
+    ).await;
     match result {
-        Ok(todo) => HttpResponse::Ok().json(todo),
-        _ => HttpResponse::BadRequest().body("Todo not found")
+        Ok(results) => {
+            if raw_output_flag.is_some() && raw_output_flag.unwrap() {
+                Ok(HttpResponse::Ok().json(
+                        super::model::competition_results_to_line_item_json(results).await.unwrap()))
+            } else {
+                Ok(HttpResponse::Ok()
+                    //.header("LOCATION", "/static/lobby_browser.html")
+                    .content_type("text/html; charset=utf-8")
+                    .body(include_str!("../../static/result_line_items.html")))
+            }
+        }
+        _ => Ok(HttpResponse::BadRequest().body("Malformed 'where' clause"))
     }
 }
 
@@ -83,5 +109,5 @@ async fn get_competition_results(
 //
 // function that will be called on new Application to configure routes for this module
 pub fn init(cfg: &mut web::ServiceConfig) {
-    cfg.service(get_competition_results);
+    cfg.service(find_competition_results_with_arbitrary_where_clause);
 }

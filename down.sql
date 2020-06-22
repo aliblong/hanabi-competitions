@@ -9,3 +9,4 @@ drop table if exists characters cascade;
 drop table if exists seed_characters cascade;
 drop table if exists seed_characters cascade;
 drop materialized view if exists competition_names cascade;
+drop view if exists computed_competition_standings cascade;
