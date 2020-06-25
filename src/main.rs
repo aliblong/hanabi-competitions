@@ -2,14 +2,19 @@
 extern crate log;
 
 use dotenv::dotenv;
+use itertools;
 use listenfd::ListenFd;
-use std::env;
+use std::{env, fs, io::{BufReader, prelude::*}};
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use sqlx::PgPool;
 use anyhow::Result;
 
 // import todo module (routes and model)
 mod hlc;
+
+fn get_expected_env_var(name: &str) -> String {
+    env::var(name).expect(&*format!("{} must be set (check `.env`)", name))
+}
 
 // default / handler
 async fn index() -> impl Responder {
@@ -25,6 +30,31 @@ async fn index() -> impl Responder {
     )
 }
 
+fn read_passwords_from_file(file_path: &str) -> Result<Vec<String>> {
+    let file = fs::File::open(file_path)?;
+    let buf = BufReader::new(file);
+    let results = itertools::process_results(
+        buf.lines(),
+        |lines| {
+            lines.filter(|line| {
+                match line.chars().next() {
+                    Some('#') => false,
+                    None => false,
+                    _ => true,
+                }
+            }).collect()
+        }
+    )?;
+    Ok(results)
+}
+
+#[derive(Clone)]
+pub struct DbViewerPool(pub PgPool);
+#[derive(Clone)]
+pub struct DbAdminPool(pub PgPool);
+#[derive(Clone)]
+pub struct ApiPasswords(pub Vec<String>);
+
 #[actix_rt::main]
 async fn main() -> Result<()> {
     dotenv().ok();
@@ -33,12 +63,20 @@ async fn main() -> Result<()> {
     // this will enable us to keep application running during recompile: systemfd --no-pid -s http::5000 -- cargo watch -x run
     let mut listenfd = ListenFd::from_env();
 
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
-    let db_pool = PgPool::new(&database_url).await?;
+    let database_viewer_url = get_expected_env_var("DATABASE_VIEWER_URL");
+    let database_admin_url = get_expected_env_var("DATABASE_ADMIN_URL");
+    let db_viewer_pool = DbViewerPool(PgPool::new(&database_viewer_url).await?);
+    let db_admin_pool = DbAdminPool(PgPool::new(&database_admin_url).await?);
+    let api_password_file_path = get_expected_env_var("ACCEPTED_API_PASSWORDS");
+    let api_passwords = ApiPasswords(read_passwords_from_file(&api_password_file_path).expect(
+        format!("No file found at path: {}", api_password_file_path).as_ref()
+    ));
 
     let mut server = HttpServer::new(move || {
         App::new()
-            .data(db_pool.clone()) // pass database pool to application so we can access it inside handlers
+            .data(db_viewer_pool.clone())
+            .data(db_admin_pool.clone())
+            .data(api_passwords.clone())
             .route("/", web::get().to(index))
             .configure(hlc::init) // init todo routes
     });

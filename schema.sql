@@ -68,7 +68,7 @@ create materialized view if not exists competition_names as (
     join variants on competitions.variant_id = variants.id
 );
 
-create view if not exists computed_competition_standings as (
+create or replace view computed_competition_standings as (
 with base_cte as (
     select
         competitions.id competition_id

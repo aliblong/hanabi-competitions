@@ -1,11 +1,11 @@
-use serde;
-use actix_web::{HttpResponse, HttpRequest, Responder, Error};
+use serde::{Serialize, Deserialize};
+use actix_web::{HttpResponse, HttpRequest, Responder, Error, web};
 use futures::future::{ready, Ready};
 use sqlx::{PgPool, FromRow, Row};
 use sqlx::postgres::PgRow;
 use anyhow::Result;
 use sqlx::postgres::*;
-use chrono;
+use chrono::{Weekday, Duration, Datelike};
 //use super::routes::CompetitionResultsQueryParams;
 
 pub type UtcDateTime = chrono::DateTime<chrono::offset::Utc>;
@@ -39,9 +39,88 @@ pub type UtcDateTime = chrono::DateTime<chrono::offset::Utc>;
 //         ))
 //     }
 // }
+//: web::Json<TodoRequest>
+#[derive(Serialize, Deserialize)]
+pub struct PartiallySpecifiedCompetition {
+    pub api_password: String,
+    pub num_players: i8,
+    pub variant: String,
+    pub end_time: Option<UtcDateTime>,
+    pub deckplay_enabled: Option<bool>,
+    pub empty_clues_enabled: Option<bool>,
+    pub characters_enabled: Option<bool>,
+    pub additional_rules: Option<String>,
+    pub seeds: Option<Vec<String>>,
+}
+#[derive(Serialize, Deserialize)]
+pub struct Competition {
+    pub num_players: i8,
+    pub variant: String,
+    pub end_time: UtcDateTime,
+    pub deckplay_enabled: bool,
+    pub empty_clues_enabled: bool,
+    pub characters_enabled: bool,
+    pub additional_rules: String,
+    pub seeds: Vec<String>,
+}
+
+impl PartiallySpecifiedCompetition {
+    pub fn fill_missing_values_with_defaults(mut self) -> Competition {
+        if self.end_time.is_none() {
+            let today = chrono::offset::Utc::today();
+            // If I'm setting the competition on Mon-Wed, it's probably the current competition
+            let days_to_add = match today.weekday() {
+                Weekday::Mon => 14,
+                Weekday::Tue => 13,
+                Weekday::Wed => 12,
+                Weekday::Thu => 18,
+                Weekday::Fri => 17,
+                Weekday::Sat => 16,
+                Weekday::Sun => 15,
+            };
+            // Default competition end time: Monday @ 13:00 UTC, which is just after I wake up
+            self.end_time = Some((today + Duration::days(days_to_add)).and_hms(13, 0, 0));
+        }
+        if self.deckplay_enabled.is_none() { self.deckplay_enabled = Some(true) }
+        if self.empty_clues_enabled.is_none() { self.empty_clues_enabled = Some(true) }
+        if self.characters_enabled.is_none() { self.characters_enabled = Some(true) }
+        if self.additional_rules.is_none() { self.additional_rules = Some("".to_owned()) }
+        if self.seeds.is_none() {
+            let base_seed_name = format!(
+                "hl-comp-{}", self.end_time.unwrap().date().format("%Y-%m-%d")
+            );
+            self.seeds = Some(vec![
+                format!("{}-1", base_seed_name),
+                format!("{}-2", base_seed_name),
+                format!("{}-3", base_seed_name),
+                format!("{}-4", base_seed_name),
+            ]);
+        }
+        Competition {
+            num_players: self.num_players,
+            variant: self.variant,
+            end_time: self.end_time.unwrap(),
+            deckplay_enabled: self.deckplay_enabled.unwrap(),
+            empty_clues_enabled: self.empty_clues_enabled.unwrap(),
+            characters_enabled: self.characters_enabled.unwrap(),
+            additional_rules: self.additional_rules.unwrap(),
+            seeds: self.seeds.unwrap(),
+        }
+    }
+}
+
+pub async fn add_competition(
+    pool: &super::super::DbAdminPool,
+    wrapped_json_payload: web::Json<PartiallySpecifiedCompetition>,
+) -> Result<()> {
+    let json_payload = wrapped_json_payload.into_inner();
+    if (unwrapped_data.api_password)
+    let competition_config.fill_missing_values_with_defaults();
+    Ok(())
+}
 
 pub async fn find_competition_result_line_items(
-    pool: &PgPool,
+    pool: &super::super::DbViewerPool,
     query_where_clause: Option<String>,
 ) -> Result<Vec<CompetitionResult>> {
     let clause_to_insert = {
@@ -64,7 +143,7 @@ pub async fn find_competition_result_line_items(
               , game_id
               , player_name
         "#, clause_to_insert))
-        .fetch_all(&*pool)
+        .fetch_all(&pool.0)
         .await?;
     Ok(result)
 }

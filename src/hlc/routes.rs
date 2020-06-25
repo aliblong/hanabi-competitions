@@ -49,13 +49,13 @@ pub struct ResultLineItemsQueryParams {
 #[get("/result_line_items")]
 async fn find_competition_results_with_arbitrary_where_clause(
     query_params: QsQuery<ResultLineItemsQueryParams>,
-    db_pool: web::Data<PgPool>
+    db_pool: web::Data<super::super::DbViewerPool>
 ) -> Result<HttpResponse, Error> {
     let unwrapped_query_params = query_params.into_inner();
     let where_clause = unwrapped_query_params.where_clause;
     let raw_output_flag = unwrapped_query_params.raw;
     let result = super::model::find_competition_result_line_items(
-        db_pool.get_ref(),
+        &db_pool.get_ref(),
         where_clause,
     ).await;
     match result {
@@ -70,8 +70,24 @@ async fn find_competition_results_with_arbitrary_where_clause(
                     .body(include_str!("../../static/result_line_items.html")))
             }
         }
-        _ => Ok(HttpResponse::BadRequest().body("Malformed 'where' clause"))
+        Err(err) => {
+            println!("{:?}", err);
+            Ok(HttpResponse::BadRequest().body("Malformed 'where' clause"))
+        }
     }
+}
+
+#[post("/competition")]
+async fn add_competition(
+    db_pool: web::Data<super::super::DbViewerPool>,
+    api_passwords: web::Data<Vec<String>>,
+    wrapped_json_payload: web::Json<PartiallySpecifiedCompetition>,
+) -> Result<HttpResponse, Error> {
+    let json_payload = wrapped_json_payload.into_inner();
+    if api_passwords.iter().find(json_payload.api_password).is_none() {
+        Ok(
+    }
+    super::model::add_competition()
 }
 
 //#[post("/todo")]
