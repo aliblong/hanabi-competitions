@@ -1,7 +1,10 @@
-use actix_web::{delete, get, post, put, web, HttpResponse, Responder, Error};
+use actix_web::{delete, get, post, put, web, HttpResponse, Responder, Error, HttpRequest};
 use sqlx::PgPool;
 use serde::Deserialize;
 use serde_qs::actix::QsQuery;
+use actix_http::http::header::Header;
+use actix_web_httpauth::headers::authorization::{self, Scheme};
+use std::collections::HashMap;
 
 //#[get("/todos")]
 //async fn find_all(db_pool: web::Data<PgPool>) -> impl Responder {
@@ -79,15 +82,26 @@ async fn find_competition_results_with_arbitrary_where_clause(
 
 #[post("/competition")]
 async fn add_competition(
-    db_pool: web::Data<super::super::DbViewerPool>,
-    api_passwords: web::Data<Vec<String>>,
-    wrapped_json_payload: web::Json<PartiallySpecifiedCompetition>,
+    req: HttpRequest,
+    wrapped_db_pool: web::Data<super::super::DbAdminPool>,
+    wrapped_api_credentials: web::Data<super::super::ApiCredentials>,
+    wrapped_json_payload: web::Json<super::model::PartiallySpecifiedCompetition>,
 ) -> Result<HttpResponse, Error> {
-    let json_payload = wrapped_json_payload.into_inner();
-    if api_passwords.iter().find(json_payload.api_password).is_none() {
-        Ok(
+    let auth = authorization::Authorization::<authorization::Basic>::parse(&req)?.into_scheme();
+    let supplied_pw = auth.password();
+    if supplied_pw.is_none() {
+        return Ok(HttpResponse::Unauthorized().body("Missing password in credentials"));
     }
-    super::model::add_competition()
+    let api_credentials = wrapped_api_credentials.into_inner().0;
+    let stored_pw = api_credentials.get(auth.user_id() as &str);
+    if stored_pw.is_none() || stored_pw.unwrap() != supplied_pw.unwrap() {
+        return Ok(HttpResponse::Unauthorized().body("Bad credentials"));
+    }
+    super::model::add_competition(
+        &wrapped_db_pool.into_inner(),
+        wrapped_json_payload.into_inner()
+    ).await?;
+    Ok(HttpResponse::Ok().body("Values successfully inserted"))
 }
 
 //#[post("/todo")]

@@ -8,6 +8,7 @@ use std::{env, fs, io::{BufReader, prelude::*}};
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use sqlx::PgPool;
 use anyhow::Result;
+use std::collections::HashMap;
 
 // import todo module (routes and model)
 mod hlc;
@@ -30,22 +31,27 @@ async fn index() -> impl Responder {
     )
 }
 
-fn read_passwords_from_file(file_path: &str) -> Result<Vec<String>> {
+fn read_credentials_from_file(file_path: &str) -> Result<ApiCredentials> {
     let file = fs::File::open(file_path)?;
     let buf = BufReader::new(file);
-    let results = itertools::process_results(
+    let credentials: HashMap<String, String> = itertools::process_results(
         buf.lines(),
         |lines| {
-            lines.filter(|line| {
+            lines.filter_map(|line| {
                 match line.chars().next() {
-                    Some('#') => false,
-                    None => false,
-                    _ => true,
+                    Some('#') => None,
+                    None => None,
+                    _ => {
+                        let tokens = line.splitn(2, ':');
+                        let user_id = tokens.next().unwrap().to_owned();
+                        let password = tokens.next().unwrap().to_owned();
+                        Some((user_id, password))
+                    },
                 }
             }).collect()
         }
     )?;
-    Ok(results)
+    Ok(ApiCredentials(credentials))
 }
 
 #[derive(Clone)]
@@ -53,7 +59,7 @@ pub struct DbViewerPool(pub PgPool);
 #[derive(Clone)]
 pub struct DbAdminPool(pub PgPool);
 #[derive(Clone)]
-pub struct ApiPasswords(pub Vec<String>);
+pub struct ApiCredentials(pub HashMap<String, String>);
 
 #[actix_rt::main]
 async fn main() -> Result<()> {
@@ -67,16 +73,15 @@ async fn main() -> Result<()> {
     let database_admin_url = get_expected_env_var("DATABASE_ADMIN_URL");
     let db_viewer_pool = DbViewerPool(PgPool::new(&database_viewer_url).await?);
     let db_admin_pool = DbAdminPool(PgPool::new(&database_admin_url).await?);
-    let api_password_file_path = get_expected_env_var("ACCEPTED_API_PASSWORDS");
-    let api_passwords = ApiPasswords(read_passwords_from_file(&api_password_file_path).expect(
-        format!("No file found at path: {}", api_password_file_path).as_ref()
-    ));
+    let api_credentials_file_path = get_expected_env_var("ACCEPTED_API_CREDENTIALS");
+    let api_credentials = read_credentials_from_file(&api_credentials_file_path)
+        .expect(&format!("No file found at path: {}", api_credentials_file_path));
 
     let mut server = HttpServer::new(move || {
         App::new()
             .data(db_viewer_pool.clone())
             .data(db_admin_pool.clone())
-            .data(api_passwords.clone())
+            .data(api_credentials.clone())
             .route("/", web::get().to(index))
             .configure(hlc::init) // init todo routes
     });

@@ -111,11 +111,9 @@ impl PartiallySpecifiedCompetition {
 
 pub async fn add_competition(
     pool: &super::super::DbAdminPool,
-    wrapped_json_payload: web::Json<PartiallySpecifiedCompetition>,
+    partially_specified_competition_config: PartiallySpecifiedCompetition,
 ) -> Result<()> {
-    let json_payload = wrapped_json_payload.into_inner();
-    if (unwrapped_data.api_password)
-    let competition_config.fill_missing_values_with_defaults();
+    let competition_config = partially_specified_competition_config.fill_missing_values_with_defaults();
     Ok(())
 }
 
