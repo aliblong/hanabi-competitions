@@ -107,7 +107,7 @@ async fn find_competition_results_with_arbitrary_where_clause(
 async fn authenticate(
     req: &HttpRequest,
     admin_credentials: &super::super::AdminCredentials,
-) -> Result<bool, CredentialsError> {
+) -> Result<(), CredentialsError> {
     match authorization::Authorization::<authorization::Basic>::parse(req) {
         Err(_) => Err(CredentialsError::Parse.into()),
         Ok(credentials_str) => {
@@ -117,9 +117,24 @@ async fn authenticate(
                 return Err(CredentialsError::MissingPassword.into());
             }
             let stored_pw = admin_credentials.0.get(credentials.user_id() as &str);
-            let are_credentials_valid = !(stored_pw.is_none() || stored_pw.unwrap() != supplied_pw.unwrap());
-            Ok(are_credentials_valid)
+            let are_credentials_valid = stored_pw.is_some() && stored_pw.unwrap() == supplied_pw.unwrap();
+            match are_credentials_valid {
+                false => Err(CredentialsError::BadCredentials),
+                true => Ok(())
+            }
         }
+    }
+}
+
+impl CredentialsError {
+    fn build_credentials_error_response(&self) -> HttpResponse {
+        let mut builder = match self {
+            CredentialsError::Parse | CredentialsError::MissingPassword => {
+                HttpResponse::BadRequest()
+            },
+            CredentialsError::BadCredentials => HttpResponse::Unauthorized(),
+        };
+        builder.body(format!("{}", self))
     }
 }
 
@@ -142,13 +157,8 @@ async fn add_competitions(
     wrapped_json_payload: web::Json<Vec<super::model::PartiallySpecifiedCompetition>>,
 ) -> Result<HttpResponse, Error> {
     match authenticate(&req, &wrapped_admin_credentials.into_inner()).await {
-        Ok(true) => (),
-        Ok(false) => {
-            return Ok(HttpResponse::Unauthorized().body("Bad credentials"));
-        }
-        Err(err) => {
-            return Ok(HttpResponse::Unauthorized().body(format!("{}", err)));
-        }
+        Err(resp) => return Ok(resp.build_credentials_error_response()),
+        Ok(_) => (),
     }
     let db_pool = wrapped_db_pool.into_inner();
     for competition in wrapped_json_payload.into_inner() {
