@@ -92,16 +92,19 @@ async fn add_competition(
     if supplied_pw.is_none() {
         return Ok(HttpResponse::Unauthorized().body("Missing password in credentials"));
     }
-    let api_credentials = wrapped_api_credentials.into_inner().0;
+    let api_credentials = &wrapped_api_credentials.into_inner().0;
     let stored_pw = api_credentials.get(auth.user_id() as &str);
     if stored_pw.is_none() || stored_pw.unwrap() != supplied_pw.unwrap() {
         return Ok(HttpResponse::Unauthorized().body("Bad credentials"));
     }
-    super::model::add_competition(
+    let result = super::model::add_competition(
         &wrapped_db_pool.into_inner(),
         wrapped_json_payload.into_inner()
-    ).await?;
-    Ok(HttpResponse::Ok().body("Values successfully inserted"))
+    ).await;
+    match result {
+        Ok(_) => Ok(HttpResponse::Ok().body("Values were successfully inserted.")),
+        Err(_) => Ok(HttpResponse::Ok().body("Malformed input; values were not inserted.")),
+    }
 }
 
 //#[post("/todo")]

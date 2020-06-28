@@ -42,7 +42,7 @@ fn read_credentials_from_file(file_path: &str) -> Result<ApiCredentials> {
                     Some('#') => None,
                     None => None,
                     _ => {
-                        let tokens = line.splitn(2, ':');
+                        let mut tokens = line.splitn(2, ':');
                         let user_id = tokens.next().unwrap().to_owned();
                         let password = tokens.next().unwrap().to_owned();
                         Some((user_id, password))

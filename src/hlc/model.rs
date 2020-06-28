@@ -43,7 +43,7 @@ pub type UtcDateTime = chrono::DateTime<chrono::offset::Utc>;
 #[derive(Serialize, Deserialize)]
 pub struct PartiallySpecifiedCompetition {
     pub api_password: String,
-    pub num_players: i8,
+    pub num_players: i16,
     pub variant: String,
     pub end_time: Option<UtcDateTime>,
     pub deckplay_enabled: Option<bool>,
@@ -54,7 +54,7 @@ pub struct PartiallySpecifiedCompetition {
 }
 #[derive(Serialize, Deserialize)]
 pub struct Competition {
-    pub num_players: i8,
+    pub num_players: i16,
     pub variant: String,
     pub end_time: UtcDateTime,
     pub deckplay_enabled: bool,
@@ -111,9 +111,57 @@ impl PartiallySpecifiedCompetition {
 
 pub async fn add_competition(
     pool: &super::super::DbAdminPool,
-    partially_specified_competition_config: PartiallySpecifiedCompetition,
+    partially_specified_competition: PartiallySpecifiedCompetition,
 ) -> Result<()> {
-    let competition_config = partially_specified_competition_config.fill_missing_values_with_defaults();
+    let competition = partially_specified_competition.fill_missing_values_with_defaults();
+    let variant_id = sqlx::query!(
+        "SELECT id from variants WHERE name = $1",
+        competition.variant
+    ).fetch_one(&pool.0).await?.id;
+
+    let mut tx = pool.0.begin().await?;
+    let competition_id = sqlx::query!(
+        "INSERT INTO competitions (
+            end_time
+          , num_players
+          , variant_id
+          , deckplay_enabled
+          , empty_clues_enabled
+          , characters_enabled
+          , additional_rules
+        ) VALUES (
+            $1
+          , $2
+          , $3
+          , $4
+          , $5
+          , $6
+          , $7
+        ) RETURNING id",
+        competition.end_time,
+        competition.num_players,
+        variant_id,
+        competition.deckplay_enabled,
+        competition.empty_clues_enabled,
+        competition.characters_enabled,
+        competition.additional_rules,
+    ).fetch_one(&mut tx).await?.id;
+
+    for seed in competition.seeds {
+        sqlx::query!(
+            "INSERT INTO competition_seeds (
+                competition_id
+              , name
+            ) VALUES (
+                $1
+              , $2
+            )",
+            competition_id,
+            seed,
+        ).execute(&mut tx).await?;
+    }
+
+    tx.commit().await?;
     Ok(())
 }
 

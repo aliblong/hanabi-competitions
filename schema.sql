@@ -3,14 +3,40 @@ create table if not exists players (
   , name text not null unique check(length(name) > 0)
 );
 
-create table if not exists seeds (
+create table if not exists variants (
+    id serial primary key
+    -- https://github.com/Zamiell/hanabi-live/blob/master/data/variants.json
+  , site_variant_id int not null check(id >= 0)
+  , name text not null check(length(name) > 0)
+);
+
+create table if not exists competitions (
     id smallserial primary key
-  , name text not null check (length(name) > 0)
+  , end_time timestamptz not null check(end_time > date('2020-05-01'))
+  , num_players smallint not null check(num_players >= 2)
+  , variant_id int not null references variants(id)
+  , deckplay_enabled boolean default true
+  , empty_clues_enabled boolean default false
+  , characters_enabled boolean default false
+  , additional_rules text
+    -- required by competition_seeds, and tbh I don't fully understand why
+  , unique (id, num_players)
+);
+
+create table if not exists competition_seeds (
+    id smallserial primary key
+  , competition_id smallint not null
+  , num_players smallint not null
+  , foreign key (competition_id, num_players) references competitions (id, num_players)
+  , variant_id smallint not null references variants(id)
+  , name text not null check(length(name) > 0)
+  --, unique (num_players, variant_id, name)
 );
 
 create table if not exists games (
-    id bigint primary key check (id > 0)
-  , seed_id smallint not null references seeds(id)
+    id serial primary key
+  , site_game_id bigint check (id > 0)
+  , seed_id smallint not null references competition_seeds(id)
   , score smallint not null check(score >= 0)
   , turns smallint not null check(turns >= 0)
   , datetime_started timestamptz
@@ -18,30 +44,9 @@ create table if not exists games (
 );
 
 create table if not exists game_players (
-    game_id bigint primary key references games(id)
+    game_id bigint not null references games(id)
   , player_id int not null references players(id)
-);
-
-create table if not exists variants (
-    -- https://github.com/Zamiell/hanabi-live/blob/master/data/variants.txt
-    id int primary key check(id >= 0)
-  , name text not null check(length(name) > 0)
-);
-
-create table if not exists competitions (
-    id smallserial primary key
-  , end_time timestamptz not null check(end_time > date('2020-05-01'))
-  , n_players smallint not null check(n_players >= 2)
-  , variant_id int not null references variants(id)
-  , deckplay_enabled boolean default true
-  , empty_clues_enabled boolean default false
-  , characters_enabled boolean default false
-  , additional_rules text
-);
-
-create table if not exists competition_seeds (
-    competition_id smallint not null references competitions(id)
-  , seed_id smallint not null references seeds(id)
+  , primary key (game_id, player_id)
 );
 
 create table if not exists characters (
@@ -50,8 +55,9 @@ create table if not exists characters (
 );
 
 create table if not exists seed_characters (
-    seed_id smallint not null references seeds(id)
+    seed_id smallint not null references competition_seeds(id)
   , character_id smallint not null references characters(id)
+  , primary key (seed_id, character_id)
 );
 
 create materialized view if not exists competition_names as (
@@ -60,7 +66,7 @@ create materialized view if not exists competition_names as (
       , concat(
             to_char(competitions.end_time, 'YYYY-MM-DD')
           , ' '
-          , cast(competitions.n_players as text)
+          , cast(competitions.num_players as text)
           , 'p '
           , variants.name
         ) as name
@@ -72,21 +78,20 @@ create or replace view computed_competition_standings as (
 with base_cte as (
     select
         competitions.id competition_id
-      , seeds.id seed_id
-      , seeds.name seed_name
+      , competition_seeds.id seed_id
+      , competition_seeds.name seed_name
       , games.id game_id
       , games.score
       , games.turns
       , games.datetime_started datetime_game_started
       , games.datetime_ended datetime_game_ended
       , cast(
-            rank() over(partition by seeds.id order by games.score desc, games.turns)
+            rank() over(partition by competition_seeds.id order by games.score desc, games.turns)
         as int) seed_rank
-      , cast(count(*) over(partition by seeds.id) as int) num_seed_participants
+      , cast(count(*) over(partition by competition_seeds.id) as int) num_seed_participants
     from competitions
     join competition_seeds on competition_seeds.competition_id = competitions.id
-    join seeds on competition_seeds.seed_id = seeds.id
-    join games on seeds.id = games.seed_id
+    join games on competition_seeds.id = games.seed_id
 ),
 mp_computed as (
     select
