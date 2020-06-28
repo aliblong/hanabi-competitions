@@ -31,7 +31,7 @@ async fn index() -> impl Responder {
     )
 }
 
-fn read_credentials_from_file(file_path: &str) -> Result<ApiCredentials> {
+fn read_credentials_from_file(file_path: &str) -> Result<AdminCredentials> {
     let file = fs::File::open(file_path)?;
     let buf = BufReader::new(file);
     let credentials: HashMap<String, String> = itertools::process_results(
@@ -51,7 +51,7 @@ fn read_credentials_from_file(file_path: &str) -> Result<ApiCredentials> {
             }).collect()
         }
     )?;
-    Ok(ApiCredentials(credentials))
+    Ok(AdminCredentials(credentials))
 }
 
 #[derive(Clone)]
@@ -59,7 +59,7 @@ pub struct DbViewerPool(pub PgPool);
 #[derive(Clone)]
 pub struct DbAdminPool(pub PgPool);
 #[derive(Clone)]
-pub struct ApiCredentials(pub HashMap<String, String>);
+pub struct AdminCredentials(pub HashMap<String, String>);
 
 #[actix_rt::main]
 async fn main() -> Result<()> {
@@ -73,15 +73,15 @@ async fn main() -> Result<()> {
     let database_admin_url = get_expected_env_var("DATABASE_ADMIN_URL");
     let db_viewer_pool = DbViewerPool(PgPool::new(&database_viewer_url).await?);
     let db_admin_pool = DbAdminPool(PgPool::new(&database_admin_url).await?);
-    let api_credentials_file_path = get_expected_env_var("ACCEPTED_API_CREDENTIALS");
-    let api_credentials = read_credentials_from_file(&api_credentials_file_path)
-        .expect(&format!("No file found at path: {}", api_credentials_file_path));
+    let admin_credentials_file_path = get_expected_env_var("ACCEPTED_API_CREDENTIALS");
+    let admin_credentials = read_credentials_from_file(&admin_credentials_file_path)
+        .expect(&format!("No file found at path: {}", admin_credentials_file_path));
 
     let mut server = HttpServer::new(move || {
         App::new()
             .data(db_viewer_pool.clone())
             .data(db_admin_pool.clone())
-            .data(api_credentials.clone())
+            .data(admin_credentials.clone())
             .route("/", web::get().to(index))
             .configure(hlc::init) // init todo routes
     });

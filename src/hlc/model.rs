@@ -41,8 +41,13 @@ pub type UtcDateTime = chrono::DateTime<chrono::offset::Utc>;
 // }
 //: web::Json<TodoRequest>
 #[derive(Serialize, Deserialize)]
+pub struct Variant {
+    pub id: i32,
+    pub name: String,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct PartiallySpecifiedCompetition {
-    pub api_password: String,
     pub num_players: i16,
     pub variant: String,
     pub end_time: Option<UtcDateTime>,

@@ -5,6 +5,7 @@ use serde_qs::actix::QsQuery;
 use actix_http::http::header::Header;
 use actix_web_httpauth::headers::authorization::{self, Scheme};
 use std::collections::HashMap;
+use thiserror;
 
 //#[get("/todos")]
 //async fn find_all(db_pool: web::Data<PgPool>) -> impl Responder {
@@ -37,6 +38,29 @@ use std::collections::HashMap;
 //        && self.characters.is_none()
 //    }
 //}
+
+#[derive(thiserror::Error, Debug)]
+pub enum InsertError {
+    #[error("values could not be inserted")]
+    Values,
+    #[error(transparent)]
+    Credentials(CredentialsError),
+}
+impl From<CredentialsError> for InsertError {
+    fn from(err: CredentialsError) -> InsertError {
+        InsertError::Credentials(err)
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum CredentialsError {
+    #[error("credentials couldn't be parsed")]
+    Parse,
+    #[error("password was not supplied in credentials")]
+    MissingPassword,
+    #[error("credentials did not match any known admin")]
+    BadCredentials,
+}
 
 pub struct CompetitionResultsQueryParams {
     pub competition_name: String,
@@ -80,31 +104,51 @@ async fn find_competition_results_with_arbitrary_where_clause(
     }
 }
 
-#[post("/competition")]
-async fn add_competition(
+async fn authenticate(
+    req: &HttpRequest,
+    admin_credentials: &super::super::AdminCredentials,
+) -> Result<bool, anyhow::Error> {
+    match authorization::Authorization::<authorization::Basic>::parse(req) {
+        Err(_) => Err(CredentialsError::Parse.into()),
+        Ok(credentials_str) => {
+            let credentials = credentials_str.into_scheme();
+            let supplied_pw = credentials.password();
+            if supplied_pw.is_none() {
+                return Err(CredentialsError::MissingPassword.into());
+            }
+            let stored_pw = admin_credentials.0.get(credentials.user_id() as &str);
+            let are_credentials_valid = !(stored_pw.is_none() || stored_pw.unwrap() != supplied_pw.unwrap());
+            Ok(are_credentials_valid)
+        }
+    }
+}
+
+#[post("/variant")]
+async fn add_variants(
     req: HttpRequest,
     wrapped_db_pool: web::Data<super::super::DbAdminPool>,
-    wrapped_api_credentials: web::Data<super::super::ApiCredentials>,
-    wrapped_json_payload: web::Json<super::model::PartiallySpecifiedCompetition>,
+    wrapped_admin_credentials: web::Data<super::super::AdminCredentials>,
+    wrapped_json_payload: web::Json<Vec<super::model::Variant>>,
 ) -> Result<HttpResponse, Error> {
-    let auth = authorization::Authorization::<authorization::Basic>::parse(&req)?.into_scheme();
-    let supplied_pw = auth.password();
-    if supplied_pw.is_none() {
-        return Ok(HttpResponse::Unauthorized().body("Missing password in credentials"));
-    }
-    let api_credentials = &wrapped_api_credentials.into_inner().0;
-    let stored_pw = api_credentials.get(auth.user_id() as &str);
-    if stored_pw.is_none() || stored_pw.unwrap() != supplied_pw.unwrap() {
+    Ok(HttpResponse::Ok().body("Variants were successfully inserted."))
+}
+
+
+#[post("/competition")]
+async fn add_competitions(
+    req: HttpRequest,
+    wrapped_db_pool: web::Data<super::super::DbAdminPool>,
+    wrapped_admin_credentials: web::Data<super::super::AdminCredentials>,
+    wrapped_json_payload: web::Json<Vec<super::model::PartiallySpecifiedCompetition>>,
+) -> Result<HttpResponse, Error> {
+    if !authenticate(&req, &wrapped_admin_credentials.into_inner()).await? {
         return Ok(HttpResponse::Unauthorized().body("Bad credentials"));
     }
-    let result = super::model::add_competition(
-        &wrapped_db_pool.into_inner(),
-        wrapped_json_payload.into_inner()
-    ).await;
-    match result {
-        Ok(_) => Ok(HttpResponse::Ok().body("Values were successfully inserted.")),
-        Err(_) => Ok(HttpResponse::Ok().body("Malformed input; values were not inserted.")),
+    let db_pool = wrapped_db_pool.into_inner();
+    for competition in wrapped_json_payload.into_inner() {
+        super::model::add_competition(&db_pool, competition).await?;
     }
+    Ok(HttpResponse::Ok().body("Competitions and seeds were successfully inserted."))
 }
 
 //#[post("/todo")]
@@ -143,4 +187,5 @@ async fn add_competition(
 // function that will be called on new Application to configure routes for this module
 pub fn init(cfg: &mut web::ServiceConfig) {
     cfg.service(find_competition_results_with_arbitrary_where_clause);
+    cfg.service(add_competitions);
 }
