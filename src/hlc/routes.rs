@@ -141,12 +141,21 @@ async fn add_competitions(
     wrapped_admin_credentials: web::Data<super::super::AdminCredentials>,
     wrapped_json_payload: web::Json<Vec<super::model::PartiallySpecifiedCompetition>>,
 ) -> Result<HttpResponse, Error> {
-    if !authenticate(&req, &wrapped_admin_credentials.into_inner()).await? {
-        return Ok(HttpResponse::Unauthorized().body("Bad credentials"));
+    match authenticate(&req, &wrapped_admin_credentials.into_inner()).await {
+        Ok(true) => (),
+        Ok(false) => {
+            return Ok(HttpResponse::Unauthorized().body("Bad credentials"));
+        }
+        Err(err) => {
+            return Ok(HttpResponse::Unauthorized().body(format!("{}", err)));
+        }
     }
     let db_pool = wrapped_db_pool.into_inner();
     for competition in wrapped_json_payload.into_inner() {
-        super::model::add_competition(&db_pool, competition).await?;
+        match super::model::add_competition(&db_pool, competition).await {
+            Ok(_) => (),
+            Err(err) => return Ok(HttpResponse::Unauthorized().body(format!("{}", err))),
+        }
     }
     Ok(HttpResponse::Ok().body("Competitions and seeds were successfully inserted."))
 }
