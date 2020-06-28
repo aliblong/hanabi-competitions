@@ -145,6 +145,17 @@ async fn add_variants(
     wrapped_admin_credentials: web::Data<super::super::AdminCredentials>,
     wrapped_json_payload: web::Json<Vec<super::model::Variant>>,
 ) -> Result<HttpResponse, Error> {
+    match authenticate(&req, &wrapped_admin_credentials.into_inner()).await {
+        Err(resp) => return Ok(resp.build_credentials_error_response()),
+        Ok(_) => (),
+    }
+    let db_pool = wrapped_db_pool.into_inner();
+    for variant in wrapped_json_payload.into_inner() {
+        match super::model::add_variant(&db_pool, variant).await {
+            Ok(_) => (),
+            Err(err) => return Ok(HttpResponse::BadRequest().body(format!("{}", err))),
+        }
+    }
     Ok(HttpResponse::Ok().body("Variants were successfully inserted."))
 }
 
@@ -164,7 +175,7 @@ async fn add_competitions(
     for competition in wrapped_json_payload.into_inner() {
         match super::model::add_competition(&db_pool, competition).await {
             Ok(_) => (),
-            Err(err) => return Ok(HttpResponse::Unauthorized().body(format!("{}", err))),
+            Err(err) => return Ok(HttpResponse::BadRequest().body(format!("{}", err))),
         }
     }
     Ok(HttpResponse::Ok().body("Competitions and seeds were successfully inserted."))

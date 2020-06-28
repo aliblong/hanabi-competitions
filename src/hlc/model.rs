@@ -114,6 +114,26 @@ impl PartiallySpecifiedCompetition {
     }
 }
 
+pub async fn add_variant(
+    pool: &super::super::DbAdminPool,
+    variant: Variant,
+) -> Result<()> {
+    let mut tx = pool.0.begin().await?;
+    sqlx::query!(
+        "INSERT INTO variants (
+            id
+          , name
+        ) VALUES (
+            $1
+          , $2
+        )",
+        variant.id,
+        variant.name,
+    ).execute(&mut tx).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
 pub async fn add_competition(
     pool: &super::super::DbAdminPool,
     partially_specified_competition: PartiallySpecifiedCompetition,
