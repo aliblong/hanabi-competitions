@@ -107,7 +107,7 @@ async fn find_competition_results_with_arbitrary_where_clause(
 async fn authenticate(
     req: &HttpRequest,
     admin_credentials: &super::super::AdminCredentials,
-) -> Result<bool, anyhow::Error> {
+) -> Result<bool, CredentialsError> {
     match authorization::Authorization::<authorization::Basic>::parse(req) {
         Err(_) => Err(CredentialsError::Parse.into()),
         Ok(credentials_str) => {
