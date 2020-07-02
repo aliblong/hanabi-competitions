@@ -171,14 +171,41 @@ async fn add_competitions(
         Err(resp) => return Ok(resp.build_credentials_error_response()),
         Ok(_) => (),
     }
-    let db_pool = wrapped_db_pool.into_inner();
-    for competition in wrapped_json_payload.into_inner() {
-        match super::model::add_competition(&db_pool, competition).await {
+    match super::model::add_competitions(
+        &wrapped_db_pool.into_inner(),
+        wrapped_json_payload.into_inner()
+    ).await {
+        Ok(_) => Ok(HttpResponse::Ok().body("Competitions and seeds were successfully inserted.")),
+        Err(err) => Ok(HttpResponse::BadRequest().body(format!("{}", err))),
+    }
+}
+
+#[post("/competition/results")]
+async fn add_competitions_results(
+    req: HttpRequest,
+    wrapped_db_pool: web::Data<super::super::DbAdminPool>,
+    wrapped_admin_credentials: web::Data<super::super::AdminCredentials>,
+    wrapped_json_payload: web::Json<Vec<super::model::CompetitionResults>>,
+) -> Result<HttpResponse, Error> {
+    println!("hi");
+    match authenticate(&req, &wrapped_admin_credentials.into_inner()).await {
+        Err(resp) => return Ok(resp.build_credentials_error_response()),
+        Ok(_) => (),
+    }
+    let competitions_results = wrapped_json_payload.into_inner();
+    for competition_results in &competitions_results {
+        match competition_results.validate() {
             Ok(_) => (),
-            Err(err) => return Ok(HttpResponse::BadRequest().body(format!("{}", err))),
+            Err(_) => return Ok(HttpResponse::BadRequest().body("Competition results are malformed.")),
         }
     }
-    Ok(HttpResponse::Ok().body("Competitions and seeds were successfully inserted."))
+    match super::model::add_competitions_results(
+        &wrapped_db_pool.into_inner(),
+        &competitions_results
+    ).await {
+        Ok(_) => Ok(HttpResponse::Ok().body("Competitions and seeds were successfully inserted.")),
+        Err(err) => Ok(HttpResponse::BadRequest().body(format!("{}", err))),
+    }
 }
 
 //#[post("/todo")]
@@ -217,5 +244,7 @@ async fn add_competitions(
 // function that will be called on new Application to configure routes for this module
 pub fn init(cfg: &mut web::ServiceConfig) {
     cfg.service(find_competition_results_with_arbitrary_where_clause);
+    cfg.service(add_variants);
     cfg.service(add_competitions);
+    cfg.service(add_competitions_results);
 }

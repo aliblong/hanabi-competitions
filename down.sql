@@ -1,4 +1,5 @@
 drop table if exists players cascade;
+drop table if exists aliases cascade;
 drop table if exists seeds cascade;
 drop table if exists games cascade;
 drop table if exists game_players cascade;

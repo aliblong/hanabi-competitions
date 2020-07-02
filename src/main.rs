@@ -1,3 +1,4 @@
+#![recursion_limit="60"]
 #[macro_use]
 extern crate log;
 
@@ -5,7 +6,7 @@ use dotenv::dotenv;
 use itertools;
 use listenfd::ListenFd;
 use std::{env, fs, io::{BufReader, prelude::*}};
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{web, App, HttpResponse, HttpServer, Responder, FromRequest};
 use sqlx::PgPool;
 use anyhow::Result;
 use std::collections::HashMap;
@@ -82,6 +83,16 @@ async fn main() -> Result<()> {
             .data(db_viewer_pool.clone())
             .data(db_admin_pool.clone())
             .data(admin_credentials.clone())
+            .app_data(
+                // change json extractor configuration
+                web::Json::<Vec<hlc::Variant>>::configure(|cfg| {
+                    cfg.limit(100000)
+            }))
+            .app_data(
+                // change json extractor configuration
+                web::Json::<Vec<hlc::CompetitionResults>>::configure(|cfg| {
+                    cfg.limit(100000)
+            }))
             .route("/", web::get().to(index))
             .configure(hlc::init) // init todo routes
     });

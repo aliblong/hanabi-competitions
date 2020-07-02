@@ -9,6 +9,13 @@ use chrono::{Weekday, Duration, Datelike};
 //use super::routes::CompetitionResultsQueryParams;
 
 pub type UtcDateTime = chrono::DateTime<chrono::offset::Utc>;
+pub type Date = chrono::NaiveDate;
+
+#[derive(thiserror::Error, Debug)]
+pub enum CompetitionResultsError {
+    #[error("Consistency error in competition results: {0}")]
+    Consistency(String),
+}
 // // this struct will use to receive user input
 // #[derive(Serialize, Deserialize)]
 // pub struct TodoRequest {
@@ -55,7 +62,7 @@ pub struct PartiallySpecifiedCompetition {
     pub empty_clues_enabled: Option<bool>,
     pub characters_enabled: Option<bool>,
     pub additional_rules: Option<String>,
-    pub seeds: Option<Vec<String>>,
+    pub base_seed_names: Option<Vec<String>>,
 }
 #[derive(Serialize, Deserialize)]
 pub struct Competition {
@@ -66,7 +73,52 @@ pub struct Competition {
     pub empty_clues_enabled: bool,
     pub characters_enabled: bool,
     pub additional_rules: String,
-    pub seeds: Vec<String>,
+    pub base_seed_names: Vec<String>,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GameResult {
+    pub game_id: i64,
+    pub score: i16,
+    pub turns: i16,
+    pub datetime_started: UtcDateTime,
+    pub datetime_ended: UtcDateTime,
+}
+#[derive(Serialize, Deserialize)]
+pub struct TeamResults {
+    pub players: Vec<String>,
+    pub game_results: Vec<Option<GameResult>>,
+}
+#[derive(Serialize, Deserialize)]
+pub struct CompetitionResults {
+    pub num_players: i16,
+    // need the variant ID at the point of retrieving results anyway, since it constitutes part
+    // of the full seed name
+    pub variant_id: i32,
+    pub base_seed_names: Vec<String>,
+    pub end_date: Date,
+    pub teams_results: Vec<TeamResults>
+}
+
+impl CompetitionResults {
+    pub fn validate(&self) -> Result<(), CompetitionResultsError> {
+        let num_players = self.num_players;
+        let num_seeds = self.base_seed_names.len();
+        for team_results in &self.teams_results {
+            if team_results.players.len() != num_players as usize
+            {
+                return Err(CompetitionResultsError::Consistency(format!(
+                    "num_players = {}; players = {:?}", num_players, &team_results.players
+                )));
+            }
+            if team_results.game_results.len() != num_seeds as usize
+            {
+                return Err(CompetitionResultsError::Consistency(format!(
+                    "num_seeds = {}; game_results = {:?}", num_seeds, &team_results.game_results
+                )));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl PartiallySpecifiedCompetition {
@@ -90,15 +142,15 @@ impl PartiallySpecifiedCompetition {
         if self.empty_clues_enabled.is_none() { self.empty_clues_enabled = Some(true) }
         if self.characters_enabled.is_none() { self.characters_enabled = Some(true) }
         if self.additional_rules.is_none() { self.additional_rules = Some("".to_owned()) }
-        if self.seeds.is_none() {
-            let base_seed_name = format!(
+        if self.base_seed_names.is_none() {
+            let base_seed_prefix = format!(
                 "hl-comp-{}", self.end_time.unwrap().date().format("%Y-%m-%d")
             );
-            self.seeds = Some(vec![
-                format!("{}-1", base_seed_name),
-                format!("{}-2", base_seed_name),
-                format!("{}-3", base_seed_name),
-                format!("{}-4", base_seed_name),
+            self.base_seed_names = Some(vec![
+                format!("{}-1", base_seed_prefix),
+                format!("{}-2", base_seed_prefix),
+                format!("{}-3", base_seed_prefix),
+                format!("{}-4", base_seed_prefix),
             ]);
         }
         Competition {
@@ -109,7 +161,7 @@ impl PartiallySpecifiedCompetition {
             empty_clues_enabled: self.empty_clues_enabled.unwrap(),
             characters_enabled: self.characters_enabled.unwrap(),
             additional_rules: self.additional_rules.unwrap(),
-            seeds: self.seeds.unwrap(),
+            base_seed_names: self.base_seed_names.unwrap(),
         }
     }
 }
@@ -121,7 +173,7 @@ pub async fn add_variant(
     let mut tx = pool.0.begin().await?;
     sqlx::query!(
         "INSERT INTO variants (
-            id
+            site_variant_id
           , name
         ) VALUES (
             $1
@@ -134,17 +186,17 @@ pub async fn add_variant(
     Ok(())
 }
 
+pub type Tx = sqlx::Transaction<sqlx::pool::PoolConnection<sqlx::PgConnection>>;
 pub async fn add_competition(
-    pool: &super::super::DbAdminPool,
+    mut tx: Tx,
     partially_specified_competition: PartiallySpecifiedCompetition,
-) -> Result<()> {
+) -> Result<Tx> {
     let competition = partially_specified_competition.fill_missing_values_with_defaults();
     let variant_id = sqlx::query!(
         "SELECT id from variants WHERE name = $1",
         competition.variant
-    ).fetch_one(&pool.0).await?.id;
+    ).fetch_one(&mut tx).await?.id;
 
-    let mut tx = pool.0.begin().await?;
     let competition_id = sqlx::query!(
         "INSERT INTO competitions (
             end_time
@@ -172,23 +224,133 @@ pub async fn add_competition(
         competition.additional_rules,
     ).fetch_one(&mut tx).await?.id;
 
-    for seed in competition.seeds {
+    for base_seed_name in competition.base_seed_names {
         sqlx::query!(
             "INSERT INTO competition_seeds (
                 competition_id
-              , name
+              , num_players
+              , variant_id
+              , base_name
             ) VALUES (
                 $1
               , $2
+              , $3
+              , $4
             )",
             competition_id,
-            seed,
+            competition.num_players,
+            variant_id,
+            base_seed_name,
         ).execute(&mut tx).await?;
     }
+    Ok(tx)
+}
 
+pub async fn add_competitions(
+    pool: &super::super::DbAdminPool,
+    partially_specified_competitions: Vec<PartiallySpecifiedCompetition>,
+) -> Result<()> {
+    // if a single competition causes an error, don't commit any
+    let mut tx = pool.0.begin().await?;
+    for competition in partially_specified_competitions {
+        // I'd prefer to use references throughout, but I don't know a better pattern that would
+        // allow me to pass the same mutable borrow to multiple functions.
+        tx = add_competition(tx, competition).await?;
+    }
     tx.commit().await?;
     Ok(())
 }
+
+pub async fn add_competitions_results(
+    pool: &super::super::DbAdminPool,
+    competitions_results: &Vec<CompetitionResults>,
+) -> Result<()> {
+    // if a single competition causes an error, don't commit any
+    let mut tx = pool.0.begin().await?;
+    for competition_results in competitions_results {
+        // I'd prefer to use references throughout, but I don't know a better pattern that would
+        // allow me to pass the same mutable borrow to multiple functions.
+        tx = add_competition_results(tx, competition_results).await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+pub async fn add_competition_results(
+    mut tx: Tx,
+    competition_results: &CompetitionResults,
+) -> Result<Tx> {
+    let mut seed_ids = Vec::new(); // : Vec<i16>
+    // doesn't seem to be a simple way to use async functions in closures
+    println!("grabbing seed IDs");
+    for base_seed_name in &competition_results.base_seed_names {
+        seed_ids.push(sqlx::query!(
+            "SELECT competition_seeds.id
+            FROM competition_seeds
+            JOIN variants on variant_id = variants.id
+            WHERE
+                base_name = $1
+                and variants.site_variant_id = $2
+                and num_players = $3
+            ",
+            base_seed_name,
+            competition_results.variant_id,
+            competition_results.num_players,
+        ).fetch_one(&mut tx).await?.id);
+    };
+
+    for team_results in &competition_results.teams_results {
+        let mut player_ids = Vec::new();
+        println!("Inserting players");
+        for player_name in &team_results.players {
+            player_ids.push(sqlx::query!(
+                "with new_players as (
+                    INSERT INTO players (name) VALUES ($1)
+                    ON CONFLICT (name) DO NOTHING
+                    RETURNING id
+                ) select coalesce(
+                    (select id from new_players)
+                  , (select id from players where name = $1)
+                ) id",
+                player_name,
+            ).fetch_one(&mut tx).await?.id);
+        }
+        //let game_results = &team_results.game_results;
+        println!("Inserting results");
+        for (game, seed_id) in (&team_results.game_results).iter().zip((&seed_ids).iter()) {
+            if game.is_none() {
+                continue;
+            }
+            let game = game.as_ref().unwrap();
+            sqlx::query!(
+                "INSERT INTO games (
+                    site_game_id
+                  , seed_id
+                  , score
+                  , turns
+                  , datetime_started
+                  , datetime_ended
+                ) VALUES (
+                    $1
+                  , $2
+                  , $3
+                  , $4
+                  , $5
+                  , $6
+                )",
+                game.game_id,
+                *seed_id,
+                game.score,
+                game.turns,
+                game.datetime_started,
+                game.datetime_ended,
+            ).execute(&mut tx).await?;
+        }
+    }
+    Ok(tx)
+}
+
+// %Y-%m-%dT%H:%M:%S.%f%z
 
 pub async fn find_competition_result_line_items(
     pool: &super::super::DbViewerPool,
