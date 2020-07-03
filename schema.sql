@@ -52,6 +52,10 @@ create table if not exists games (
   , datetime_ended timestamptz
 );
 
+create table if not exists whitelisted_games (
+    id int primary key references games(id) on delete cascade
+);
+
 create table if not exists game_players (
     game_id int not null references games(id) on delete cascade
   , player_id int not null references players(id) on delete cascade
@@ -96,14 +100,60 @@ with base_cte as (
       , games.turns
       , games.datetime_started datetime_game_started
       , games.datetime_ended datetime_game_ended
-      , cast(
-            rank() over(partition by competition_seeds.id order by games.score desc, games.turns)
-        as int) seed_rank
-      , cast(count(*) over(partition by competition_seeds.id) as int) num_seed_participants
-      , cast(count(*) over(partition by competitions.id) as int) num_comp_participants
     from competitions
     join competition_seeds on competition_seeds.competition_id = competitions.id
     join games on competition_seeds.id = games.seed_id
+    where games.datetime_ended < competitions.end_time
+),
+game_participation as (
+    select
+        seed_id
+      , game_id
+      , datetime_game_started
+      , coalesce(primary_accounts.id, actual_accounts.id) player_id
+      , case 
+            when whitelisted_games.id is not null
+                then 1
+            else 0
+        end as is_whitelisted_game
+    from base_cte
+    join game_players using(game_id)
+    join players actual_accounts on game_players.player_id = actual_accounts.id
+    left join aliases on actual_accounts.id = aliases.alias_id
+    left join players primary_accounts on aliases.primary_id = primary_accounts.id
+    left join whitelisted_games on game_id = whitelisted_games.id
+),
+prioritized_games as (
+    select
+        game_id
+      , row_number() over(
+            partition by seed_id, player_id
+            order by is_whitelisted_game desc, datetime_game_started
+        ) priority
+    from game_participation
+),
+games_selected as (
+    select
+        competition_id
+      , seed_id
+      , base_seed_name
+      , game_id
+      , replay_URL
+      , score
+      , turns
+      , datetime_game_started
+      , datetime_game_ended
+      , cast(
+            rank() over(partition by seed_id order by score desc, turns)
+        as int) seed_rank
+      , cast(count(*) over(partition by seed_id) as int) num_seed_participants
+      , cast(count(*) over(partition by competition_id) as int) num_comp_participants
+    from base_cte
+    where not exists (
+            select p.game_id
+            from prioritized_games p
+            where priority > 1 and p.game_id = base_cte.game_id
+        )
 ),
 competition_num_unique_seeds as (
     select competitions.id, count(distinct competition_seeds.id) num_seeds
@@ -128,7 +178,7 @@ computed_mp as (
       , turns
       , datetime_game_started
       , datetime_game_ended
-    from base_cte
+    from games_selected
     join competition_num_unique_seeds on competition_id = competition_num_unique_seeds.id
 ),
 computed_mp_with_primary_player_ids as (
