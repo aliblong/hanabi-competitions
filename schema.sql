@@ -90,6 +90,8 @@ with base_cte as (
       , competition_seeds.id seed_id
       , competition_seeds.base_name base_seed_name
       , games.id game_id
+        -- if we start allowing play on different sites, revisit this
+      , concat('https://hanabi.live/replay/', games.site_game_id) replay_URL
       , games.score
       , games.turns
       , games.datetime_started datetime_game_started
@@ -121,6 +123,7 @@ computed_mp as (
         ) as seed_matchpoints
       , 2 * (num_comp_participants - num_seeds) as max_MP
       , game_id
+      , replay_URL
       , score
       , turns
       , datetime_game_started
@@ -136,6 +139,7 @@ computed_mp_with_primary_player_ids as (
       , seed_matchpoints
       , max_MP
       , game_id
+      , replay_URL
       , score
       , turns
       , datetime_game_started
@@ -152,27 +156,42 @@ mp_agg as (
     select
         competition_id
       , sum(seed_matchpoints) over(partition by competition_id, player_id) as sum_MP
+      , player_id
       , player_name
       , seed_id
       , base_seed_name
       , seed_matchpoints
       , max_MP
-      , game_id
+      , replay_URL
       , score
       , turns
       , datetime_game_started
       , datetime_game_ended
     from computed_mp_with_primary_player_ids
+),
+competition_player_sum_MP as (
+    select distinct
+        competition_id
+      , player_id
+      , sum_MP
+    from mp_agg
+),
+competition_player_ranks as (
+    select
+        competition_id
+      , player_id 
+      , rank() over(order by sum_MP desc) final_rank
+    from competition_player_sum_MP
 )
 select
     competition_names.name competition_name
-  , rank() over(partition by competition_id order by sum_MP desc) final_rank
+  , final_rank
   , cast(sum_MP as real)/ max_MP as fractional_MP
   , sum_MP
   , player_name
   , base_seed_name
   , seed_matchpoints
-  , game_id
+  , replay_URL
   , score
   , turns
   , datetime_game_started
@@ -180,6 +199,7 @@ select
   , characters.name character_name
 from mp_agg
 join competition_names on competition_id = competition_names.id
+join competition_player_ranks cpr using(competition_id, player_id)
 left join seed_characters on mp_agg.seed_id = seed_characters.character_id
 left join characters on seed_characters.character_id = characters.id
 --order by
