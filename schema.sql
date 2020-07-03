@@ -53,7 +53,7 @@ create table if not exists games (
 );
 
 create table if not exists game_players (
-    game_id bigint not null references games(id) on delete cascade
+    game_id int not null references games(id) on delete cascade
   , player_id int not null references players(id) on delete cascade
   , primary key (game_id, player_id)
 );
@@ -98,11 +98,18 @@ with base_cte as (
             rank() over(partition by competition_seeds.id order by games.score desc, games.turns)
         as int) seed_rank
       , cast(count(*) over(partition by competition_seeds.id) as int) num_seed_participants
+      , cast(count(*) over(partition by competitions.id) as int) num_comp_participants
     from competitions
     join competition_seeds on competition_seeds.competition_id = competitions.id
     join games on competition_seeds.id = games.seed_id
 ),
-mp_computed_with_primary_player_ids as (
+competition_num_unique_seeds as (
+    select competitions.id, count(distinct competition_seeds.id) num_seeds
+    from competitions
+    join competition_seeds on competition_seeds.competition_id = competitions.id
+    group by competitions.id
+),
+computed_mp as (
     select
         competition_id
       , seed_id
@@ -112,7 +119,22 @@ mp_computed_with_primary_player_ids as (
             - (cast(count(*) over(partition by base_seed_name, seed_rank) as int) - 1)
             - 2 * seed_rank
         ) as seed_matchpoints
-      , num_seed_participants
+      , 2 * (num_comp_participants - num_seeds) as max_MP
+      , game_id
+      , score
+      , turns
+      , datetime_game_started
+      , datetime_game_ended
+    from base_cte
+    join competition_num_unique_seeds on competition_id = competition_num_unique_seeds.id
+),
+computed_mp_with_primary_player_ids as (
+    select
+        competition_id
+      , seed_id
+      , base_seed_name
+      , seed_matchpoints
+      , max_MP
       , game_id
       , score
       , turns
@@ -120,7 +142,7 @@ mp_computed_with_primary_player_ids as (
       , datetime_game_ended
       , coalesce(primary_accounts.id, actual_accounts.id) player_id
       , coalesce(primary_accounts.name, actual_accounts.name) player_name
-    from base_cte
+    from computed_mp
     join game_players using(game_id)
     join players actual_accounts on game_players.player_id = actual_accounts.id
     left join aliases on actual_accounts.id = aliases.alias_id
@@ -130,24 +152,21 @@ mp_agg as (
     select
         competition_id
       , sum(seed_matchpoints) over(partition by competition_id, player_id) as sum_MP
-      , 2 * (
-            sum(num_seed_participants) over(partition by competition_id)
-            - count(seed_id) over(partition by competition_id)
-        ) as max_MP
       , player_name
       , seed_id
       , base_seed_name
       , seed_matchpoints
+      , max_MP
       , game_id
       , score
       , turns
       , datetime_game_started
       , datetime_game_ended
-    from mp_computed_with_primary_player_ids
+    from computed_mp_with_primary_player_ids
 )
 select
     competition_names.name competition_name
-  , rank() over(partition by competition_id order by sum_MP) final_rank
+  , rank() over(partition by competition_id order by sum_MP desc) final_rank
   , cast(sum_MP as real)/ max_MP as fractional_MP
   , sum_MP
   , player_name

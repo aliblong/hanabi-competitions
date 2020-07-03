@@ -282,7 +282,6 @@ pub async fn add_competition_results(
 ) -> Result<Tx> {
     let mut seed_ids = Vec::new(); // : Vec<i16>
     // doesn't seem to be a simple way to use async functions in closures
-    println!("grabbing seed IDs");
     for base_seed_name in &competition_results.base_seed_names {
         seed_ids.push(sqlx::query!(
             "SELECT competition_seeds.id
@@ -301,7 +300,6 @@ pub async fn add_competition_results(
 
     for team_results in &competition_results.teams_results {
         let mut player_ids = Vec::new();
-        println!("Inserting players");
         for player_name in &team_results.players {
             player_ids.push(sqlx::query!(
                 "with new_players as (
@@ -313,16 +311,15 @@ pub async fn add_competition_results(
                   , (select id from players where name = $1)
                 ) id",
                 player_name,
-            ).fetch_one(&mut tx).await?.id);
+            ).fetch_one(&mut tx).await?.id.unwrap());
         }
         //let game_results = &team_results.game_results;
-        println!("Inserting results");
         for (game, seed_id) in (&team_results.game_results).iter().zip((&seed_ids).iter()) {
             if game.is_none() {
                 continue;
             }
             let game = game.as_ref().unwrap();
-            sqlx::query!(
+            let game_id = sqlx::query!(
                 "INSERT INTO games (
                     site_game_id
                   , seed_id
@@ -337,14 +334,27 @@ pub async fn add_competition_results(
                   , $4
                   , $5
                   , $6
-                )",
+                ) returning id",
                 game.game_id,
                 *seed_id,
                 game.score,
                 game.turns,
                 game.datetime_started,
                 game.datetime_ended,
-            ).execute(&mut tx).await?;
+            ).fetch_one(&mut tx).await?.id;
+            for player_id in &player_ids {
+                sqlx::query!(
+                    "INSERT INTO game_players (
+                        game_id
+                      , player_id
+                    ) VALUES (
+                        $1
+                      , $2
+                    )",
+                    game_id,
+                    *player_id,
+                ).execute(&mut tx).await?;
+            }
         }
     }
     Ok(tx)

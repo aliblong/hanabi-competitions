@@ -187,7 +187,6 @@ async fn add_competitions_results(
     wrapped_admin_credentials: web::Data<super::super::AdminCredentials>,
     wrapped_json_payload: web::Json<Vec<super::model::CompetitionResults>>,
 ) -> Result<HttpResponse, Error> {
-    println!("hi");
     match authenticate(&req, &wrapped_admin_credentials.into_inner()).await {
         Err(resp) => return Ok(resp.build_credentials_error_response()),
         Ok(_) => (),
