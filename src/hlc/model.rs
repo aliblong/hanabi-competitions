@@ -77,6 +77,7 @@ pub struct Competition {
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GameResult {
+    pub players: Vec<String>,
     pub game_id: i64,
     pub score: i16,
     pub turns: i16,
@@ -84,9 +85,9 @@ pub struct GameResult {
     pub datetime_ended: UtcDateTime,
 }
 #[derive(Serialize, Deserialize)]
-pub struct TeamResults {
-    pub players: Vec<String>,
-    pub game_results: Vec<Option<GameResult>>,
+pub struct SeedResults {
+    pub base_seed_name: String,
+    pub games_results: Vec<GameResult>,
 }
 #[derive(Serialize, Deserialize)]
 pub struct CompetitionResults {
@@ -94,27 +95,21 @@ pub struct CompetitionResults {
     // need the variant ID at the point of retrieving results anyway, since it constitutes part
     // of the full seed name
     pub variant_id: i32,
-    pub base_seed_names: Vec<String>,
     pub end_date: Date,
-    pub teams_results: Vec<TeamResults>
+    pub seeds_results: Vec<SeedResults>
 }
 
 impl CompetitionResults {
     pub fn validate(&self) -> Result<(), CompetitionResultsError> {
         let num_players = self.num_players;
-        let num_seeds = self.base_seed_names.len();
-        for team_results in &self.teams_results {
-            if team_results.players.len() != num_players as usize
-            {
-                return Err(CompetitionResultsError::Consistency(format!(
-                    "num_players = {}; players = {:?}", num_players, &team_results.players
-                )));
-            }
-            if team_results.game_results.len() != num_seeds as usize
-            {
-                return Err(CompetitionResultsError::Consistency(format!(
-                    "num_seeds = {}; game_results = {:?}", num_seeds, &team_results.game_results
-                )));
+        for seed_results in &self.seeds_results {
+            for game_results in &seed_results.games_results {
+                if game_results.players.len() != num_players as usize
+                {
+                    return Err(CompetitionResultsError::Consistency(format!(
+                        "num_players = {}; players = {:?}", num_players, &game_results.players
+                    )));
+                }
             }
         }
         Ok(())
@@ -257,6 +252,7 @@ pub async fn add_competitions(
         // allow me to pass the same mutable borrow to multiple functions.
         tx = add_competition(tx, competition).await?;
     }
+    sqlx::query!("refresh materialized view competition_names").execute(&mut tx).await?;
     tx.commit().await?;
     Ok(())
 }
@@ -280,10 +276,8 @@ pub async fn add_competition_results(
     mut tx: Tx,
     competition_results: &CompetitionResults,
 ) -> Result<Tx> {
-    let mut seed_ids = Vec::new(); // : Vec<i16>
-    // doesn't seem to be a simple way to use async functions in closures
-    for base_seed_name in &competition_results.base_seed_names {
-        seed_ids.push(sqlx::query!(
+    for seed_results in &competition_results.seeds_results {
+        let seed_id = sqlx::query!(
             "SELECT competition_seeds.id
             FROM competition_seeds
             JOIN variants on variant_id = variants.id
@@ -292,33 +286,25 @@ pub async fn add_competition_results(
                 and variants.site_variant_id = $2
                 and num_players = $3
             ",
-            base_seed_name,
+            seed_results.base_seed_name,
             competition_results.variant_id,
             competition_results.num_players,
-        ).fetch_one(&mut tx).await?.id);
-    };
-
-    for team_results in &competition_results.teams_results {
-        let mut player_ids = Vec::new();
-        for player_name in &team_results.players {
-            player_ids.push(sqlx::query!(
-                "with new_players as (
-                    INSERT INTO players (name) VALUES ($1)
-                    ON CONFLICT (name) DO NOTHING
-                    RETURNING id
-                ) select coalesce(
-                    (select id from new_players)
-                  , (select id from players where name = $1)
-                ) id",
-                player_name,
-            ).fetch_one(&mut tx).await?.id.unwrap());
-        }
-        //let game_results = &team_results.game_results;
-        for (game, seed_id) in (&team_results.game_results).iter().zip((&seed_ids).iter()) {
-            if game.is_none() {
-                continue;
+        ).fetch_one(&mut tx).await?.id;
+        for game_results in &seed_results.games_results {
+            let mut player_ids = Vec::new();
+            for player_name in &game_results.players {
+                player_ids.push(sqlx::query!(
+                    "with new_players as (
+                        INSERT INTO players (name) VALUES ($1)
+                        ON CONFLICT (name) DO NOTHING
+                        RETURNING id
+                    ) select coalesce(
+                        (select id from new_players)
+                      , (select id from players where name = $1)
+                    ) id",
+                    player_name,
+                ).fetch_one(&mut tx).await?.id.unwrap());
             }
-            let game = game.as_ref().unwrap();
             let game_id = sqlx::query!(
                 "INSERT INTO games (
                     site_game_id
@@ -335,13 +321,14 @@ pub async fn add_competition_results(
                   , $5
                   , $6
                 ) returning id",
-                game.game_id,
-                *seed_id,
-                game.score,
-                game.turns,
-                game.datetime_started,
-                game.datetime_ended,
+                game_results.game_id,
+                seed_id,
+                game_results.score,
+                game_results.turns,
+                game_results.datetime_started,
+                game_results.datetime_ended,
             ).fetch_one(&mut tx).await?.id;
+
             for player_id in &player_ids {
                 sqlx::query!(
                     "INSERT INTO game_players (
