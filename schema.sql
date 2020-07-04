@@ -87,7 +87,7 @@ create materialized view if not exists competition_names as (
     join variants on competitions.variant_id = variants.id
 );
 
-create or replace view computed_competition_standings as (
+create materialized view if not exists computed_competition_standings as (
 with base_cte as (
     select
         competitions.id competition_id
@@ -230,13 +230,18 @@ competition_player_ranks as (
     select
         competition_id
       , player_id 
-      , rank() over(order by sum_MP desc) final_rank
+      , rank() over(partition by competition_id order by sum_MP desc) final_rank
     from competition_player_sum_MP
 )
 select
     competition_names.name competition_name
   , final_rank
-  , cast(sum_MP as real)/ max_MP as fractional_MP
+  , case
+        when max_MP = 0
+            then null
+        else
+            cast(sum_MP as real)/ max_MP
+    end as fractional_MP
   , sum_MP
   , player_name
   , base_seed_name
@@ -258,4 +263,100 @@ left join characters on seed_characters.character_id = characters.id
 --  , base_seed_name
 --  , game_id
 --  , player_name
-)
+);
+
+create or replace function update_computed_competition_standings()
+--returns trigger language plpgsql
+returns void
+-- executes as superuser (postgres); only creator of matview can refresh it
+security definer
+as $$ begin
+    refresh materialized view computed_competition_standings;
+    return;
+end $$
+language plpgsql;
+
+create or replace function update_competition_names()
+--returns trigger language plpgsql
+returns void
+security definer
+as $$ begin
+    refresh materialized view competition_names;
+    return;
+end $$
+language plpgsql;
+
+-- Either I have a logic error, or it just takes a shitload of memory to keep refreshing the
+-- matview below
+--
+---- postgres only allows deferral (e.g. until end of txn) for constraint triggers, and only
+---- allows constraint triggers to be applied on a per-row basis
+---- so this compromise solution will refresh the matview redundantly in the middle of a txn
+---- oh, also there's no syntax for conditional creation of triggers... but there is so for
+---- conditional deletion?
+---- finally, we need to create the trigger separately for every table, afaik
+--drop trigger if exists update_players_trigger_update_comp_standings on players;
+--create trigger update_players_trigger_update_comp_standings
+--after insert or update or delete or truncate on players
+--for each statement
+--execute function update_computed_competition_standings();
+--
+--drop trigger if exists update_aliases_trigger_update_comp_standings on aliases;
+--create trigger update_aliases_trigger_update_comp_standings
+--after insert or update or delete or truncate on aliases
+--for each statement
+--execute function update_computed_competition_standings();
+--
+--drop trigger if exists update_competitions_trigger_update_comp_standings on competitions;
+--create trigger update_competitions_trigger_update_comp_standings
+--after insert or update or delete or truncate on competitions
+--for each statement
+--execute function update_computed_competition_standings();
+--
+--drop trigger if exists update_competition_seeds_trigger_update_comp_standings on competition_seeds;
+--create trigger update_competition_seeds_trigger_update_comp_standings
+--after insert or update or delete or truncate on competition_seeds
+--for each statement
+--execute function update_computed_competition_standings();
+--
+--drop trigger if exists update_games_trigger_update_comp_standings on games;
+--create trigger update_games_trigger_update_comp_standings
+--after insert or update or delete or truncate on games
+--for each statement
+--execute function update_computed_competition_standings();
+--
+--drop trigger if exists update_whitelisted_games_trigger_update_comp_standings on whitelisted_games;
+--create trigger update_whitelisted_games_trigger_update_comp_standings
+--after insert or update or delete or truncate on whitelisted_games
+--for each statement
+--execute function update_computed_competition_standings();
+--
+--drop trigger if exists update_game_players_trigger_update_comp_standings on game_players;
+--create trigger update_game_players_trigger_update_comp_standings
+--after insert or update or delete or truncate on game_players
+--for each statement
+--execute function update_computed_competition_standings();
+--
+--drop trigger if exists update_characters_trigger_update_comp_standings on characters;
+--create trigger update_characters_trigger_update_comp_standings
+--after insert or update or delete or truncate on characters
+--for each statement
+--execute function update_computed_competition_standings();
+--
+--drop trigger if exists update_seed_characters_trigger_update_comp_standings on seed_characters;
+--create trigger update_seed_characters_trigger_update_comp_standings
+--after insert or update or delete or truncate on seed_characters
+--for each statement
+--execute function update_computed_competition_standings();
+--
+--drop trigger if exists update_competitions_trigger_update_competition_names on competitions;
+--create trigger update_competitions_trigger_update_competition_names
+--after insert or update or delete or truncate on competitions
+--for each statement
+--execute function update_competition_names();
+--
+--drop trigger if exists update_variants_trigger_update_competition_names on variants;
+--create trigger update_variants_trigger_update_competition_names
+--after insert or update or delete or truncate on variants
+--for each statement
+--execute function update_competition_names();

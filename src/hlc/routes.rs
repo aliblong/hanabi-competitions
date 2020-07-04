@@ -202,7 +202,7 @@ async fn add_competitions_results(
         &wrapped_db_pool.into_inner(),
         &competitions_results
     ).await {
-        Ok(_) => Ok(HttpResponse::Ok().body("Competitions and seeds were successfully inserted.")),
+        Ok(_) => Ok(HttpResponse::Ok().body("Games were successfully inserted.")),
         Err(err) => Ok(HttpResponse::BadRequest().body(format!("{}", err))),
     }
 }

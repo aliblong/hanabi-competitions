@@ -252,7 +252,7 @@ pub async fn add_competitions(
         // allow me to pass the same mutable borrow to multiple functions.
         tx = add_competition(tx, competition).await?;
     }
-    sqlx::query!("refresh materialized view competition_names").execute(&mut tx).await?;
+    sqlx::query("select update_competition_names()").execute(&mut tx).await?;
     tx.commit().await?;
     Ok(())
 }
@@ -268,6 +268,7 @@ pub async fn add_competitions_results(
         // allow me to pass the same mutable borrow to multiple functions.
         tx = add_competition_results(tx, competition_results).await?;
     }
+    sqlx::query("select update_computed_competition_standings()").execute(&mut tx).await?;
     tx.commit().await?;
     Ok(())
 }
