@@ -14,6 +14,10 @@ for (var i = 0; i < num_headers; i++) {
 const sort = (header, col, type) => {
   let rowCount = rows.length
   rows.sort((a, b) => {
+    // set empty cells to consistently sort lower than non-empty cells
+    if (b.children[col].innerText === "") {
+      return true;
+    }
     if (type === 'text') {
       // I modified this to be much simpler, and now it also works better
       let i = a.children[col].innerText,

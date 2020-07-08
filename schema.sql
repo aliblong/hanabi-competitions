@@ -54,6 +54,12 @@ create table if not exists games (
 
 create table if not exists whitelisted_games (
     id int primary key references games(id) on delete cascade
+  , reason text
+);
+
+create table if not exists blacklisted_games (
+    id int primary key references games(id) on delete cascade
+  , reason text
 );
 
 create table if not exists game_players (
@@ -123,6 +129,11 @@ game_participation as (
     left join aliases on actual_accounts.id = aliases.alias_id
     left join players primary_accounts on aliases.primary_id = primary_accounts.id
     left join whitelisted_games on game_id = whitelisted_games.id
+    where not exists (
+        select b.id
+        from blacklisted_games b
+        where b.id = base_cte.game_id
+    )
 ),
 prioritized_games as (
     select
