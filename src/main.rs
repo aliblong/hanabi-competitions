@@ -24,6 +24,7 @@ fn get_expected_env_var(name: &str) -> String {
     env::var(name).expect(&*format!("{} must be set (check `.env`)", name))
 }
 
+/*
 // default / handler
 async fn index() -> impl Responder {
     HttpResponse::Ok().body(r#"
@@ -37,6 +38,7 @@ async fn index() -> impl Responder {
     "#
     )
 }
+*/
 
 #[actix_rt::main]
 async fn main() -> Result<()> {
@@ -103,8 +105,8 @@ async fn main() -> Result<()> {
                     cfg.limit(100000)
             }))
             .app_data(handlebars_ref.clone())
-            .route("/", web::get().to(index))
-            .configure(routes::init) // init todo routes
+            //.route("/", web::get().to(index))
+            .configure(routes::init)
             .service(actix_files::Files::new("/static", "static").show_files_listing())
     });
 

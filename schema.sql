@@ -17,13 +17,13 @@ create table if not exists variants (
 
 create table if not exists competitions (
     id smallint primary key generated always as identity
-  , end_time timestamptz not null check(end_time > date('2020-05-01'))
-  , end_date date generated always as (date(end_time at time zone 'UTC')) stored
+  , end_datetime timestamptz not null check(end_datetime > date('2020-05-01'))
+  , end_date date generated always as (date(end_datetime at time zone 'UTC')) stored
   , num_players smallint not null check(num_players >= 2)
   , variant_id int not null references variants(id)
-  , deckplay_enabled boolean default true
-  , empty_clues_enabled boolean default false
-  , characters_enabled boolean default false
+  , deckplay_enabled boolean not null default true
+  , empty_clues_enabled boolean not null default false
+  , characters_enabled boolean not null default false
   , additional_rules text
   , unique (end_date, num_players, variant_id)
     -- putting a unique constraint on id and any other columns to be used as a foreign
@@ -53,12 +53,12 @@ create table if not exists games (
 );
 
 create table if not exists whitelisted_games (
-    id int primary key references games(id) on delete cascade
+    game_id int primary key references games(id) on delete cascade
   , reason text
 );
 
 create table if not exists blacklisted_games (
-    id int primary key references games(id) on delete cascade
+    game_id int primary key references games(id) on delete cascade
   , reason text
 );
 
@@ -81,9 +81,9 @@ create table if not exists seed_characters (
 
 create materialized view if not exists competition_names as (
     select
-        competitions.id
+        competitions.id competition_id
       , concat(
-            to_char(competitions.end_time, 'YYYY-MM-DD')
+            to_char(competitions.end_datetime, 'YYYY-MM-DD')
           , ' '
           , cast(competitions.num_players as text)
           , 'p '
@@ -110,7 +110,7 @@ with base_cte as (
     from competitions
     join competition_seeds on competition_seeds.competition_id = competitions.id
     join games on competition_seeds.id = games.seed_id
-    where games.datetime_ended < competitions.end_time
+    where games.datetime_ended < competitions.end_datetime
 ),
 game_participation as (
     select
@@ -119,7 +119,7 @@ game_participation as (
       , datetime_game_started
       , coalesce(primary_accounts.id, actual_accounts.id) player_id
       , case 
-            when whitelisted_games.id is not null
+            when whitelisted_games.game_id is not null
                 then 1
             else 0
         end as is_whitelisted_game
@@ -128,11 +128,11 @@ game_participation as (
     join players actual_accounts on game_players.player_id = actual_accounts.id
     left join aliases on actual_accounts.id = aliases.alias_id
     left join players primary_accounts on aliases.primary_id = primary_accounts.id
-    left join whitelisted_games on game_id = whitelisted_games.id
+    left join whitelisted_games using(game_id)
     where not exists (
-        select b.id
+        select b.game_id
         from blacklisted_games b
-        where b.id = base_cte.game_id
+        where b.game_id = base_cte.game_id
     )
 ),
 prioritized_games as (
@@ -270,7 +270,7 @@ select
   , datetime_game_ended
   , characters.name character_name
 from mp_agg
-join competition_names on competition_id = competition_names.id
+join competition_names using(competition_id)
 join competition_player_ranks cpr using(competition_id, player_id)
 left join seed_characters on mp_agg.seed_id = seed_characters.character_id
 left join characters on seed_characters.character_id = characters.id

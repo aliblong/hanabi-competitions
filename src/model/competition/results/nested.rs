@@ -31,7 +31,7 @@ pub async fn get_single_competition_results(
         "select
             num_players
         from competition_names
-        join competitions using(id)
+        join competitions on competition_names.competition_id = competitions.id
         where name = $1",
         competition_name
     ).fetch_one(&pool.0).await?.num_players;
