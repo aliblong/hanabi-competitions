@@ -58,6 +58,33 @@ async fn main() -> Result<()> {
     handlebars
         .register_templates_directory(".html", "./static/templates")
         .unwrap();
+    /*
+    handlebars
+        /*
+        .register_script_helper("math", r#"function(lvalue, operator, rvalue, options) {
+    lvalue = parseFloat(lvalue);
+    rvalue = parseFloat(rvalue);
+        
+    return {
+        "+": lvalue + rvalue,
+        "-": lvalue - rvalue,
+        "*": lvalue * rvalue,
+        "/": lvalue / rvalue,
+        "%": lvalue % rvalue
+    }[operator];
+}"#.to_owned())
+        */
+        .register_helper("math", |left, op, right| {
+            match op {
+                "+" => left + right,
+                "-" => left - right,
+                "*" => left * right,
+                "/" => left / right,
+                "%" => left % right,
+            }
+        })
+        .unwrap();
+        */
     let handlebars_ref = web::Data::new(handlebars);
 
     let mut server = HttpServer::new(move || {

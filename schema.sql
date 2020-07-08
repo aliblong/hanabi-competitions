@@ -96,6 +96,7 @@ with base_cte as (
       , games.id game_id
         -- if we start allowing play on different sites, revisit this
       , concat('https://hanabi.live/replay/', games.site_game_id) replay_URL
+      , games.site_game_id
       , games.score
       , games.turns
       , games.datetime_started datetime_game_started
@@ -139,6 +140,7 @@ games_selected as (
       , base_seed_name
       , game_id
       , replay_URL
+      , site_game_id
       , score
       , turns
       , datetime_game_started
@@ -174,6 +176,7 @@ computed_mp as (
       , 2 * (num_comp_participants - num_seeds) as max_MP
       , game_id
       , replay_URL
+      , site_game_id
       , score
       , turns
       , datetime_game_started
@@ -190,6 +193,7 @@ computed_mp_with_primary_player_ids as (
       , max_MP
       , game_id
       , replay_URL
+      , site_game_id
       , score
       , turns
       , datetime_game_started
@@ -213,6 +217,7 @@ mp_agg as (
       , seed_matchpoints
       , max_MP
       , replay_URL
+      , site_game_id
       , score
       , turns
       , datetime_game_started
@@ -247,6 +252,7 @@ select
   , base_seed_name
   , seed_matchpoints
   , replay_URL
+  , site_game_id
   , score
   , turns
   , datetime_game_started

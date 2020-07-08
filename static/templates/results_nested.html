@@ -15,27 +15,37 @@
     <table>
       <thead>
         <tr>
-          <th data-type="text" scope="col" role="columnheader">competition name</th>
+            <!--th colspan="{math this.0.players.len "+" 3}"></th>-->
+          <th colspan="{{team_size}}"></th>
+          <th colspan="3"></th>
+          {{#each base_seed_names}}
+          <th colspan="5">{{this}}</th>
+          {{/each}}
+        </tr>
+        <tr>
+          {{#each team_results.0.players}}
+          <th data-type="text" scope="col" role="columnheader">player {{@index}}</th>
+          {{/each}}
           <th data-type="number" scope="col" role="columnheader">final rank</th>
           <th data-type="text" scope="col" role="columnheader">frac. MP</th>
           <th data-type="number" scope="col" role="columnheader">Σ MP</th>
-          <th data-type="text" scope="col" role="columnheader">player name</th>
-          <th data-type="text" scope="col" role="columnheader">seed name</th>
+          {{#each base_seed_names}}
           <th data-type="number" scope="col" role="columnheader">seed MP</th>
-          <th data-type="text" scope="col" role="columnheader">hanabi.live game ID</th>
+          <th data-type="text" scope="col" role="columnheader">game ID</th>
           <th data-type="number" scope="col" role="columnheader">score</th>
           <th data-type="number" scope="col" role="columnheader">turns</th>
-          <th data-type="text" scope="col" role="columnheader">dt start</th>
-          <th data-type="text" scope="col" role="columnheader">dt end</th>
-          <th data-type="text" scope="col" role="columnheader">char name</th>
+          <th data-type="number" scope="col" role="columnheader">duration (s)</th>
+          {{/each}}
         </tr>
       </thead>
       <tbody id="tableBody">
-          {{#each this}}
+          {{#each team_results}}
           <tr>
+              {{#each players}}
               <td>
-                  {{competition_name}}
+                  {{this}}
               </td>
+              {{/each}}
               <td>
                   {{final_rank}}
               </td>
@@ -45,12 +55,7 @@
               <td>
                   {{sum_mp}}
               </td>
-              <td>
-                  {{player_name}}
-              </td>
-              <td>
-                  {{base_seed_name}}
-              </td>
+              {{#each game_results}}
               <td>
                   {{seed_matchpoints}}
               </td>
@@ -64,14 +69,9 @@
                   {{turns}}
               </td>
               <td>
-                  {{datetime_game_started}}
+                  {{game_duration_seconds}}
               </td>
-              <td>
-                  {{datetime_game_ended}}
-              </td>
-              <td>
-                  {{character_name}}
-              </td>
+              {{/each}}
           </tr>
           {{/each}}
       </tbody>

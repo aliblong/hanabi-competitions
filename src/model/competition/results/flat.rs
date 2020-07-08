@@ -31,7 +31,7 @@ pub async fn get_arbitrary_competitions_results(
     Ok(result)
 }
 
-pub async fn flat_results_to_json(results: Vec<CompetitionResult>) -> Result<String> {
+pub fn flat_results_to_json(results: Vec<CompetitionResult>) -> Result<String> {
     let jsonified_results = serde_json::to_string(&results)?;
     Ok(jsonified_results)
 }
@@ -45,6 +45,7 @@ pub struct CompetitionResult {
     pub player_name: String,
     pub base_seed_name: String,
     pub seed_matchpoints: i32,
+    pub site_game_id: i64,
     pub replay_url: String,
     pub score: i16,
     pub turns: i16,

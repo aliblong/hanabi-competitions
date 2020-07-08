@@ -12,7 +12,7 @@ pub struct CompetitionFlatQueryParams {
 }
 
 #[get("/competitions/results/flat")]
-async fn get_competitions_flat(
+async fn get_competition_results_flat(
     query_params: serde_qs::actix::QsQuery<CompetitionFlatQueryParams>,
     db_pool: web::Data<DbViewerPool>,
     hb: web::Data<handlebars::Handlebars<'_>>,
@@ -28,7 +28,7 @@ async fn get_competitions_flat(
         Ok(results) => {
             //println!("{}", json_results);
             if raw_output_flag.is_some() && raw_output_flag.unwrap() {
-                let json_results = flat_results_to_json(results).await.unwrap();
+                let json_results = flat_results_to_json(results).unwrap();
                 Ok(HttpResponse::Ok().json(json_results))
             } else {
                 Ok(HttpResponse::Ok()

@@ -1,14 +1,23 @@
+// https://www.smashingmagazine.com/2019/01/table-design-patterns-web/
 const tableBody = document.getElementById('tableBody')
 const thead = tableBody.previousElementSibling
 const rows = [...tableBody.rows]
-const orders = [1, 1, 1, 1, 1, 1, 1, 1]
+// remember to update this if the number of columns ever changes
+// I didn't write this myself, and it seems kind of smelly, but I can't be  bothered
+// to figure out a better way.
+const num_headers = Array.prototype.slice.call(thead.querySelectorAll('th')).length;
+const orders = [];
+for (var i = 0; i < num_headers; i++) {
+    orders.push(1);
+}
 
 const sort = (header, col, type) => {
   let rowCount = rows.length
   rows.sort((a, b) => {
     if (type === 'text') {
-      let i = a.children[col].firstChild.nodeValue,
-        j = b.children[col].firstChild.nodeValue
+      // I modified this to be much simpler, and now it also works better
+      let i = a.children[col].innerText,
+        j = b.children[col].innerText
       return i === j ? 0 : i > j ? orders[col] : -orders[col]
     } else if (type === 'number') {
       let i = parseInt(a.children[col].firstChild.nodeValue),

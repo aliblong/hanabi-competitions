@@ -98,8 +98,8 @@ impl CredentialsError {
 }
 
 pub fn init(cfg: &mut web::ServiceConfig) {
-    cfg.service(competitions::results::flat::get_competitions_flat);
-    //cfg.service(competitions::results::nested::get_competitions_nested);
+    cfg.service(competitions::results::flat::get_competition_results_flat);
+    cfg.service(competitions::results::nested::get_competition_results_nested);
     cfg.service(variants::post_variants);
     cfg.service(competitions::post_competitions);
     cfg.service(games::post_games);
