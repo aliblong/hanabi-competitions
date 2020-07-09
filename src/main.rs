@@ -7,13 +7,12 @@ mod routes;
 mod model;
 
 use dotenv::dotenv;
-use itertools;
+//use itertools;
 use listenfd::ListenFd;
-use actix_web::{web, App, HttpResponse, HttpServer, Responder, FromRequest};
+use actix_web::{web, App, HttpResponse, HttpRequest, HttpServer, FromRequest, http::header};
 use sqlx::PgPool;
 use std::env;
 use anyhow::Result;
-use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct DbViewerPool(pub PgPool);
@@ -108,6 +107,16 @@ async fn main() -> Result<()> {
             //.route("/", web::get().to(index))
             .configure(routes::init)
             .service(actix_files::Files::new("/static", "static").show_files_listing())
+            .service(web::resource("/about").route(web::get().to(|req: HttpRequest| {
+                HttpResponse::Found()
+                    .header(header::LOCATION, "static/about.html")
+                    .finish()
+            })))
+            .service(web::resource("/contact").route(web::get().to(|req: HttpRequest| {
+                HttpResponse::Found()
+                    .header(header::LOCATION, "static/contact.html")
+                    .finish()
+            })))
     });
 
     server = match listenfd.take_tcp_listener(0)? {
