@@ -26,3 +26,4 @@ anyhow = "1.0.28"
 thiserror = "*"
 handlebars = { version = "*", features = ["dir_source", "script_helper"] }
 actix-files = "*"
+urlencoding = "*"

@@ -1,16 +1,16 @@
-use actix_web::{post, web, HttpResponse, Error, HttpRequest};
+use actix_web::{get, web, HttpResponse, Error, HttpRequest};
 use crate::{
-    model::competition::{get_competition_names, get_active_competitions, Competition},
+    model::competition::{get_competition_names, get_active_competitions, CompetitionWithCreateTableUrls},
     DbViewerPool,
 };
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Debug)]
 struct IndexContents {
     pub competition_names: Vec<String>,
-    pub active_competitions: Vec<Competition>
+    pub active_competitions: Vec<CompetitionWithCreateTableUrls>
 }
 
-#[post("/competitions")]
+#[get("/")]
 async fn get_index(
     wrapped_db_pool: web::Data<DbViewerPool>,
     hb: web::Data<handlebars::Handlebars<'_>>,

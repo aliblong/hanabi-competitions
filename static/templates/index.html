@@ -8,10 +8,71 @@
 	<!--link rel="icon" type="image/png" href="images/icons/favicon.ico"/-->
 <!--===============================================================================================-->
 	<link rel="stylesheet" type="text/css" href="/static/main.css">
+	<link rel="stylesheet" type="text/css" href="/static/simpleSelect.css">
 </head>
 <body>
 <main>
     <h1>Hanabi Competitions</h1>
+    <h2>Get results for a competition</h2>
+    <form id="get_competition_results_nested"
+        target="_blank">
+    <select id="select_competition" onchange="get_competition_results_nested(this.form)">
+        {{#each competition_names}}
+        <option>{{this}}</option>
+        {{/each}}
+    </select>
+    </form>
+    <h2 id="search_across_competitions">Search across all competition results</h2>
+    <form action="/competitions/results/flat" target="_blank">
+        <input name="where_clause" type="text" placeholder="(Optional) arbitrary SQL logic">
+        <input type="submit" value="Submit">
+    </form>
+    <a href="/about#howto_search_across_competitions" target="_blank">Guide to using this feature</a>
+    <h2>Active competitions</h2>
+    {{#each active_competitions}}
+    <h3>{{competition_name}}</h3>
+    <table>
+      {{#with competition}}
+      <tr>
+        <th>Competition deadline</th>
+        <td>{{end_datetime}}</td>
+      </tr>
+      <tr>
+        <th>Number of players</th>
+        <td>{{num_players}}</td>
+      </tr>
+      <tr>
+        <th>Variant</th>
+        <td>{{variant}}</td>
+      </tr>
+      <tr>
+        <th>Deckplay enabled</th>
+        <td>{{deckplay_enabled}}</td>
+      </tr>
+      <tr>
+        <th>Empty clues enabled</th>
+        <td>{{empty_clues_enabled}}</td>
+      </tr>
+      <tr>
+        <th>Detrimental characters enabled</th>
+        <td>{{characters_enabled}}</td>
+      </tr>
+      <tr>
+        <th>Additional Rules</th>
+        <td>{{additional_rules}}</td>
+      </tr>
+      {{/with}}
+      {{#each create_table_urls}}
+      <tr>
+        <th>Seed {{@index}}</th>
+        <td><a href="{{create_table_url}}">{{base_seed_name}}</a></td>
+      </tr>
+      {{/each}}
+    </table>
+    {{/each}}
 </main>
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="/static/simpleSelect.js"></script>
+<script src="/static/index.js"></script>
 </body>
-</html
+</html>

@@ -16,7 +16,7 @@ pub struct PartiallySpecifiedCompetition {
     pub additional_rules: Option<String>,
     pub base_seed_names: Option<Vec<String>>,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Competition {
     pub num_players: i16,
     pub variant: String,
@@ -27,6 +27,58 @@ pub struct Competition {
     pub additional_rules: Option<String>,
     pub base_seed_names: Vec<String>,
 }
+// This bit of ugliness is due to needing to pipe this into handlebars
+// Even if I wanted to figure out how to properly write a heler function,
+// afaict, there's no good way to zip together vectors.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CompetitionWithCreateTableUrls {
+    pub create_table_urls: Vec<BaseSeedNameCreateTableUrlPair>,
+    pub competition: Competition,
+    pub competition_name: String,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BaseSeedNameCreateTableUrlPair {
+    base_seed_name: String,
+    create_table_url: String,
+}
+
+impl CompetitionWithCreateTableUrls {
+    pub fn new(competition: Competition, competition_name: String) -> Self {
+        let seed_name_create_table_url_pairs = competition.generate_create_table_urls()
+            .into_iter().zip(competition.base_seed_names.iter())
+            .map(|(create_table_url, base_seed_name)| BaseSeedNameCreateTableUrlPair {
+                base_seed_name: base_seed_name.clone(),
+                create_table_url
+            }).collect();
+        Self {
+            create_table_urls: seed_name_create_table_url_pairs,
+            competition,
+            competition_name,
+        }
+    }
+}
+
+impl Competition {
+    pub fn generate_create_table_urls(&self) -> Vec<String> {
+        let mut create_table_urls = Vec::new();
+        for base_seed_name in &self.base_seed_names {
+            create_table_urls.push(format!("https://hanabi.live/create-table?\
+                name=!seed%20{}\
+                &variantName={}\
+                &deckPlays={}\
+                &emptyClues={}\
+                &detrimentalCharacters={}",
+                urlencoding::encode(&base_seed_name),
+                urlencoding::encode(&self.variant),
+                self.deckplay_enabled,
+                self.empty_clues_enabled,
+                self.characters_enabled,
+            ));
+        }
+        create_table_urls
+    }
+}
+
 impl PartiallySpecifiedCompetition {
     pub fn fill_missing_values_with_defaults(mut self) -> Competition {
         if self.end_datetime.is_none() {
@@ -45,8 +97,8 @@ impl PartiallySpecifiedCompetition {
             self.end_datetime = Some((today + Duration::days(days_to_add)).and_hms(13, 0, 0));
         }
         if self.deckplay_enabled.is_none() { self.deckplay_enabled = Some(true) }
-        if self.empty_clues_enabled.is_none() { self.empty_clues_enabled = Some(true) }
-        if self.characters_enabled.is_none() { self.characters_enabled = Some(true) }
+        if self.empty_clues_enabled.is_none() { self.empty_clues_enabled = Some(false) }
+        if self.characters_enabled.is_none() { self.characters_enabled = Some(false) }
         if self.base_seed_names.is_none() {
             let base_seed_prefix = format!(
                 "hl-comp-{}", self.end_datetime.unwrap().date().format("%Y-%m-%d")
@@ -86,7 +138,7 @@ pub async fn get_competition_names(
 
 pub async fn get_active_competitions(
     pool: &DbViewerPool,
-) -> Result<Vec<Competition>> {
+) -> Result<Vec<CompetitionWithCreateTableUrls>> {
     let active_competitions_without_seeds = sqlx::query!(
         "select
             competitions.id
@@ -98,12 +150,14 @@ pub async fn get_active_competitions(
           , empty_clues_enabled
           , characters_enabled
           , additional_rules
+          , competition_names.name
         from competitions
         join variants on variant_id = variants.id
         join competition_names on competitions.id = competition_names.competition_id
-        where end_datetime > now()",
+        where end_datetime > date('2020-06-01')" //now()",
     ).fetch_all(&pool.0).await?;
     let mut active_competitions = Vec::new();
+    let mut competition_names: Vec<String> = Vec::new();
     for active_competition_without_seeds in active_competitions_without_seeds {
         let base_seed_name_records = sqlx::query!(
             "select base_name
@@ -127,9 +181,13 @@ pub async fn get_active_competitions(
             additional_rules: active_competition_without_seeds.additional_rules,
             base_seed_names: base_seed_name_records.into_iter().map(|record|
                 record.base_name).collect(),
-        })
+        });
+        competition_names.push(active_competition_without_seeds.name.unwrap());
     }
-    Ok(active_competitions)
+    Ok(active_competitions.into_iter().zip(competition_names.into_iter())
+        .map(|(competition, competition_name)| {
+            CompetitionWithCreateTableUrls::new(competition, competition_name)
+        }).collect())
 }
 
 pub async fn add_competitions(

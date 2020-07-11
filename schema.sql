@@ -79,6 +79,8 @@ create table if not exists seed_characters (
   , primary key (seed_id, character_id)
 );
 
+-- even though "name" is logically non-null, it's not possible to explicitly constain it as such,
+-- except with a hack-y solution like in https://stackoverflow.com/a/47245081
 create materialized view if not exists competition_names as (
     select
         competitions.id competition_id
