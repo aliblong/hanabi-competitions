@@ -2,10 +2,10 @@ use sqlx::postgres::*;
 use crate::model::UtcDateTime;
 use anyhow::Result;
 
-pub async fn get_arbitrary_competitions_results(
+pub async fn get_combined_results(
     pool: &crate::DbViewerPool,
     query_where_clause: &Option<String>,
-) -> Result<Vec<CompetitionResult>> {
+) -> Result<Vec<CombinedResult>> {
     let clause_to_insert = {
         if let Some(clause) = query_where_clause {
             format!("where {}", clause)
@@ -13,7 +13,7 @@ pub async fn get_arbitrary_competitions_results(
             "".to_owned()
         }
     };
-    let result = sqlx::query_as::<sqlx::Postgres, CompetitionResult>(&format!(r#"
+    let result = sqlx::query_as::<sqlx::Postgres, CombinedResult>(&format!(r#"
             -- intentional sql injection, so make sure account doesn't have any more
             -- privileges than select
             select *
@@ -31,13 +31,16 @@ pub async fn get_arbitrary_competitions_results(
     Ok(result)
 }
 
-pub fn flat_results_to_json(results: Vec<CompetitionResult>) -> Result<String> {
+pub fn combined_results_to_json(results: Vec<CombinedResult>) -> Result<String> {
     let jsonified_results = serde_json::to_string(&results)?;
     Ok(jsonified_results)
 }
 
+// This is quite similar to model::competition::CompetitionFlatResult, but this one is designed
+// to be a raw, complete view, for analysis, where the other is tailored to be a good
+// default view of the results, intended to be nested.
 #[derive(sqlx::FromRow, serde::Serialize)]
-pub struct CompetitionResult {
+pub struct CombinedResult {
     pub competition_name: String,
     pub final_rank: i64,
     pub fractional_mp: f64,

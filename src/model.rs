@@ -1,6 +1,7 @@
 pub mod competition;
 pub mod game;
 pub mod variant;
+pub mod result;
 
 use serde::{Serialize, Deserialize};
 use actix_web::{HttpResponse, HttpRequest, Responder, Error, web};

@@ -32,6 +32,22 @@ create table if not exists competitions (
   , unique (id, num_players)
 );
 
+--create or replace view competition_ruleset (
+--    select
+--      --  competitions.id
+--        competition_names.name competition_name
+--      , num_players
+--      , variants.name variant_name
+--      , end_datetime
+--      , deckplay_enabled
+--      , empty_clues_enabled
+--      , characters_enabled
+--      , additional_rules
+--    from competitions
+--    join variants on variant_id = variants.id
+--    join competition_names on competitions.id = competition_names.competition_id
+--)
+
 create table if not exists competition_seeds (
     id smallint primary key generated always as identity
   , competition_id smallint not null

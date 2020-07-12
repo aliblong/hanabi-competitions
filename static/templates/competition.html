@@ -11,14 +11,54 @@
 </head>
 <body>
 <main>
+    <table>
+      {{#with competition_with_derived_quantities}}
+      {{#with competition.ruleset}}
+      <tr>
+        <th>Competition deadline</th>
+        <td>{{end_datetime}}</td>
+      </tr>
+      <tr>
+        <th>Number of players</th>
+        <td>{{num_players}}</td>
+      </tr>
+      <tr>
+        <th>Variant</th>
+        <td>{{variant}}</td>
+      </tr>
+      <tr>
+        <th>Deckplay enabled</th>
+        <td>{{deckplay_enabled}}</td>
+      </tr>
+      <tr>
+        <th>Empty clues enabled</th>
+        <td>{{empty_clues_enabled}}</td>
+      </tr>
+      <tr>
+        <th>Detrimental characters enabled</th>
+        <td>{{characters_enabled}}</td>
+      </tr>
+      <tr>
+        <th>Additional Rules</th>
+        <td>{{additional_rules}}</td>
+      </tr>
+      {{/with}}
+      {{#each create_table_urls}}
+      <tr>
+        <th>Seed {{@index}}</th>
+        <td><a href="{{create_table_url}}">{{base_seed_name}}</a></td>
+      </tr>
+      {{/each}}
+      {{/with}}
+    </table>
   <div class="table-wrapper">
     <table>
       <thead>
         <tr>
             <!--th colspan="{math this.0.players.len "+" 3}"></th>-->
-          <th colspan="{{team_size}}"></th>
+          <th colspan="{{competition_with_derived_quantities.competition.ruleset.num_players}}"></th>
           <th colspan="3" style="text-align:right">seed names:</th>
-          {{#each base_seed_names}}
+          {{#each competition_with_derived_quantities.competition.base_seed_names}}
           <th colspan="5">{{this}}</th>
           {{/each}}
         </tr>
@@ -29,7 +69,7 @@
           <th data-type="number" scope="col" role="columnheader">final rank</th>
           <th data-type="text" scope="col" role="columnheader">frac. MP</th>
           <th data-type="number" scope="col" role="columnheader">Σ MP</th>
-          {{#each base_seed_names}}
+          {{#each competition_with_derived_quantities.competition.base_seed_names}}
           <th data-type="number" scope="col" role="columnheader">seed MP</th>
           <th data-type="text" scope="col" role="columnheader">game ID</th>
           <th data-type="number" scope="col" role="columnheader">score</th>

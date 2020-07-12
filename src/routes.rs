@@ -2,6 +2,7 @@ pub mod index;
 pub mod competitions;
 pub mod games;
 pub mod variants;
+pub mod results;
 
 use actix_web::{delete, get, post, put, web, HttpResponse, Responder, Error, HttpRequest};
 use sqlx::PgPool;
@@ -100,8 +101,8 @@ impl CredentialsError {
 
 pub fn init(cfg: &mut web::ServiceConfig) {
     cfg.service(index::get_index);
-    cfg.service(competitions::results::flat::get_competition_results_flat);
-    cfg.service(competitions::results::nested::get_competition_results_nested);
+    cfg.service(results::get_results);
+    cfg.service(competitions::get_competition);
     cfg.service(competitions::post_competitions);
     cfg.service(variants::post_variants);
     cfg.service(games::post_games);
