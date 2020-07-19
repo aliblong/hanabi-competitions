@@ -3,15 +3,16 @@ use crate::{
     model::competition::{
         get_competition_names,
         get_active_competitions,
-        CompetitionWithDerivedQuantities
+        group_competitions_by_series,
+        CompetitionsGroupedBySeries,
     },
     DbViewerPool,
 };
 
-#[derive(serde::Serialize, Debug)]
+#[derive(serde::Serialize)]
 struct IndexContents {
     pub competition_names: Vec<String>,
-    pub active_competitions: Vec<CompetitionWithDerivedQuantities>
+    pub active_series_competitions: CompetitionsGroupedBySeries,
 }
 
 #[get("/")]
@@ -28,7 +29,8 @@ async fn get_index(
                 Ok(active_competitions) => {
                     let index_contents = IndexContents {
                         competition_names,
-                        active_competitions,
+                        active_series_competitions:
+                            group_competitions_by_series(active_competitions),
                     };
                     Ok(HttpResponse::Ok()
                         .content_type("text/html; charset=utf-8")

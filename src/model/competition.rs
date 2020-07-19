@@ -6,6 +6,43 @@ use chrono::{Weekday, Duration, Datelike};
 use crate::{DbViewerPool, DbAdminPool, model::{Tx, UtcDateTime}};
 use anyhow::Result;
 
+// This is used with handlebars, hence the use of Vec rather than HashMap
+pub type CompetitionsGroupedBySeries = Vec<SeriesCompetitions>;
+
+#[derive(Serialize, Deserialize)]
+pub struct SeriesCompetitions {
+    series_name: String,
+    competitions: Vec<CompetitionWithDerivedQuantities>,
+}
+
+pub fn group_competitions_by_series(competitions: Vec<CompetitionWithDerivedQuantities>)
+-> CompetitionsGroupedBySeries {
+    let mut series_competitions_map =
+        HashMap::<Option<String>, Vec<CompetitionWithDerivedQuantities>>::new();
+    for competition in competitions.into_iter() {
+        let series_name = &competition.competition.series_name;
+        match series_competitions_map.get_mut(&competition.competition.series_name) {
+            Some(series_competitions) => {
+                series_competitions.push(competition);
+            }
+            None => {
+                series_competitions_map.insert(series_name.to_owned(), vec![competition]);
+            }
+        }
+    }
+    series_competitions_map.into_iter().map(
+        |(series_name_option, competitions)| {
+            let series_name = match series_name_option {
+                Some(name) => name,
+                None => "No associated series".to_owned(),
+            };
+            SeriesCompetitions {
+                series_name,
+                competitions,
+            }
+        }).collect()
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct PartiallySpecifiedCompetition {
     pub num_players: i16,
@@ -16,10 +53,11 @@ pub struct PartiallySpecifiedCompetition {
     pub characters_enabled: Option<bool>,
     pub additional_rules: Option<String>,
     pub base_seed_names: Option<Vec<String>>,
+    pub series_name: Option<String>,
 }
 
 #[derive(FromRow)]
-pub struct CompetitionRulesetWithIds {
+struct CompetitionRulesetWithIds {
     pub competition_id: i16,
     pub variant_id: i32,
     pub num_players: i16,
@@ -46,6 +84,7 @@ pub struct CompetitionRuleset {
 pub struct Competition {
     pub ruleset: CompetitionRuleset,
     pub base_seed_names: Vec<String>,
+    pub series_name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -95,7 +134,7 @@ pub struct GameResult {
 // default view of the results, intended to be nested, whereas the other is more of a raw, complete
 // view, for analysis.
 #[derive(FromRow, Serialize, Clone, Debug)]
-pub struct CompetitionFlatResult {
+struct CompetitionFlatResult {
     pub final_rank: i64,
     pub fractional_mp: f64,
     pub sum_mp: i64,
@@ -109,6 +148,12 @@ pub struct CompetitionFlatResult {
     // support for the INTERVAL type landed literally less than a week ago, so look out for a
     // release: https://github.com/launchbadge/sqlx/pull/271
     pub game_duration_seconds: i32,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum GetCompetitionError {
+    #[error("No competition with that name was found")]
+    NotFound,
 }
 
 impl CompetitionWithDerivedQuantities {
@@ -191,8 +236,25 @@ impl PartiallySpecifiedCompetition {
                 additional_rules: self.additional_rules,
             },
             base_seed_names: self.base_seed_names.unwrap(),
+            series_name: self.series_name,
         }
     }
+}
+
+pub async fn add_competitions(
+    pool: &DbAdminPool,
+    partially_specified_competitions: Vec<PartiallySpecifiedCompetition>,
+) -> Result<()> {
+    // if a single competition causes an error, don't commit any
+    let mut tx = pool.0.begin().await?;
+    for competition in partially_specified_competitions {
+        // I'd prefer to use references throughout, but I don't know a better pattern that would
+        // allow me to pass the same mutable borrow to multiple functions.
+        tx = add_competition(tx, competition).await?;
+    }
+    sqlx::query("select update_competition_names()").execute(&mut tx).await?;
+    tx.commit().await?;
+    Ok(())
 }
 
 pub async fn get_competition_names(
@@ -208,7 +270,43 @@ pub async fn get_competition_names(
     Ok(competition_names)
 }
 
-pub async fn get_competition_with_ids(
+pub async fn get_competition_and_nested_results(
+    pool: &DbViewerPool,
+    competition_name: &str
+) -> Result<CompetitionNestedResults> {
+    let competition_ruleset_with_ids = get_competition_with_ids(pool, competition_name).await?;
+    if competition_ruleset_with_ids.is_none() {
+        return Err(GetCompetitionError::NotFound.into());
+    }
+    let competition_with_derived_quantities =
+        competition_with_derived_quantities_from_ruleset_with_ids(
+            pool,
+            competition_ruleset_with_ids.unwrap(),
+        ).await?;
+    let competition_flat_results = get_competition_flat_results(
+        pool,
+        competition_name
+    ).await?;
+    Ok(nest_competition_results(competition_with_derived_quantities, competition_flat_results))
+}
+
+pub async fn get_active_competitions(
+    pool: &DbViewerPool,
+) -> Result<Vec<CompetitionWithDerivedQuantities>> {
+    let active_competitions_rulesets_with_ids = get_active_competitions_with_ids(pool).await?;
+    let mut competitions_with_derived_quantities = Vec::new();
+    for ruleset_with_ids in active_competitions_rulesets_with_ids {
+        competitions_with_derived_quantities.push(
+            competition_with_derived_quantities_from_ruleset_with_ids(
+                pool,
+                ruleset_with_ids,
+            ).await?
+        );
+    }
+    Ok(competitions_with_derived_quantities)
+}
+
+async fn get_competition_with_ids(
     pool: &DbViewerPool,
     competition_name: &str,
 ) -> Result<Option<CompetitionRulesetWithIds>> {
@@ -232,7 +330,7 @@ pub async fn get_competition_with_ids(
     ).fetch_optional(&pool.0).await?)
 }
 
-pub async fn get_active_competitions_with_ids(
+async fn get_active_competitions_with_ids(
     pool: &DbViewerPool,
 ) -> Result<Vec<CompetitionRulesetWithIds>> {
     Ok(sqlx::query_as!(
@@ -254,7 +352,7 @@ pub async fn get_active_competitions_with_ids(
     ).fetch_all(&pool.0).await?)
 }
 
-pub async fn competition_with_derived_quantities_from_ruleset_with_ids(
+async fn competition_with_derived_quantities_from_ruleset_with_ids(
     pool: &DbViewerPool,
     competition_ruleset_with_ids: CompetitionRulesetWithIds,
 ) -> Result<CompetitionWithDerivedQuantities> {
@@ -263,6 +361,16 @@ pub async fn competition_with_derived_quantities_from_ruleset_with_ids(
         "select name from competition_names where competition_id = $1",
         competition_ruleset_with_ids.competition_id
     ).fetch_one(&pool.0).await?.name.unwrap();
+    let series_name = match sqlx::query!(
+        "select name
+        from series_competitions
+        join series on series_competitions.series_id = series.id
+        where competition_id = $1",
+        competition_ruleset_with_ids.competition_id
+    ).fetch_optional(&pool.0).await? {
+        Some(record) => Some(record.name),
+        None => None,
+    };
     let base_seed_name_records = sqlx::query!(
         "select base_name
         from competition_seeds
@@ -287,27 +395,12 @@ pub async fn competition_with_derived_quantities_from_ruleset_with_ids(
         },
         base_seed_names: base_seed_name_records.into_iter().map(|record|
             record.base_name).collect(),
+        series_name,
     };
     Ok(CompetitionWithDerivedQuantities::new(competition, competition_name))
 }
 
-pub async fn get_active_competitions(
-    pool: &DbViewerPool,
-) -> Result<Vec<CompetitionWithDerivedQuantities>> {
-    let active_competitions_rulesets_with_ids = get_active_competitions_with_ids(pool).await?;
-    let mut competitions_with_derived_quantities = Vec::new();
-    for ruleset_with_ids in active_competitions_rulesets_with_ids {
-        competitions_with_derived_quantities.push(
-            competition_with_derived_quantities_from_ruleset_with_ids(
-                pool,
-                ruleset_with_ids,
-            ).await?
-        );
-    }
-    Ok(competitions_with_derived_quantities)
-}
-
-pub async fn get_competition_flat_results(
+async fn get_competition_flat_results(
     pool: &crate::DbViewerPool,
     competition_name: &str,
 ) -> Result<Vec<CompetitionFlatResult>> {
@@ -333,33 +426,7 @@ pub async fn get_competition_flat_results(
     Ok(results)
 }
 
-#[derive(thiserror::Error, Debug)]
-pub enum GetCompetitionError {
-    #[error("No competition with that name was found")]
-    NotFound,
-}
-
-pub async fn get_competition_and_nested_results(
-    pool: &DbViewerPool,
-    competition_name: &str
-) -> Result<CompetitionNestedResults> {
-    let competition_ruleset_with_ids = get_competition_with_ids(pool, competition_name).await?;
-    if competition_ruleset_with_ids.is_none() {
-        return Err(GetCompetitionError::NotFound.into());
-    }
-    let competition_with_derived_quantities =
-        competition_with_derived_quantities_from_ruleset_with_ids(
-            pool,
-            competition_ruleset_with_ids.unwrap(),
-        ).await?;
-    let competition_flat_results = get_competition_flat_results(
-        pool,
-        competition_name
-    ).await?;
-    Ok(nest_competition_results(competition_with_derived_quantities, competition_flat_results))
-}
-
-pub fn nest_competition_results(
+fn nest_competition_results(
     competition: CompetitionWithDerivedQuantities,
     flat_results: Vec<CompetitionFlatResult>,
 ) -> CompetitionNestedResults {
@@ -449,23 +516,7 @@ pub fn nest_competition_results(
     // seeds.sort_unstable();
     // seeds.dedup();
 
-pub async fn add_competitions(
-    pool: &DbAdminPool,
-    partially_specified_competitions: Vec<PartiallySpecifiedCompetition>,
-) -> Result<()> {
-    // if a single competition causes an error, don't commit any
-    let mut tx = pool.0.begin().await?;
-    for competition in partially_specified_competitions {
-        // I'd prefer to use references throughout, but I don't know a better pattern that would
-        // allow me to pass the same mutable borrow to multiple functions.
-        tx = add_competition(tx, competition).await?;
-    }
-    sqlx::query("select update_competition_names()").execute(&mut tx).await?;
-    tx.commit().await?;
-    Ok(())
-}
-
-pub async fn add_competition(
+async fn add_competition(
     mut tx: Tx,
     partially_specified_competition: PartiallySpecifiedCompetition,
 ) -> Result<Tx> {
@@ -502,6 +553,29 @@ pub async fn add_competition(
         ruleset.characters_enabled,
         ruleset.additional_rules,
     ).fetch_one(&mut tx).await?.id;
+
+    match &competition.series_name {
+        Some(name) => {
+            let series_id = sqlx::query!(
+                "select id
+                from series
+                where name = $1",
+                name,
+            ).fetch_one(&mut tx).await?.id;
+            sqlx::query!(
+                "insert into series_competitions (
+                    series_id
+                  , competition_id
+                ) values (
+                    $1
+                  , $2
+                )",
+                series_id,
+                competition_id
+            ).execute(&mut tx).await?;
+        },
+        None => ()
+    }
 
     for base_seed_name in competition.base_seed_names {
         sqlx::query!(

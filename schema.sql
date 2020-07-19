@@ -95,17 +95,17 @@ create table if not exists seed_characters (
   , primary key (seed_id, character_id)
 );
 
-create table if not exists seasons (
+create table if not exists series (
     id smallint primary key generated always as identity
   , name text not null check(length(name) > 0)
   , first_n smallint check(coalesce(first_n, 1) > 0)
   , top_n smallint check(coalesce(top_n, 0) <= first_n and coalesce(top_n, 1) > 0)
 );
 
-create table if not exists season_competitions (
-    season_id smallint not null references seasons(id) on delete cascade
+create table if not exists series_competitions (
+    series_id smallint not null references seriess(id) on delete cascade
   , competition_id smallint not null references competitions(id) on delete cascade
-  , primary key (season_id, competition_id)
+  , primary key (series_id, competition_id)
 );
 
 -- even though "name" is logically non-null, it's not possible to explicitly constain it as such,

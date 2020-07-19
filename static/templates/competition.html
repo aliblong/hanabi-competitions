@@ -43,12 +43,12 @@
         <td>{{additional_rules}}</td>
       </tr>
       {{/with}}
-      {{#each create_table_urls}}
       <tr>
-        <th>Seed {{@index}}</th>
+        <th>Seeds</th>
+        {{#each create_table_urls}}
         <td><a href="{{create_table_url}}">{{base_seed_name}}</a></td>
+        {{/each}}
       </tr>
-      {{/each}}
       {{/with}}
     </table>
   <div class="table-wrapper">

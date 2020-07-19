@@ -1,3 +1,4 @@
+pub mod series;
 pub mod index;
 pub mod competitions;
 pub mod games;
@@ -100,6 +101,7 @@ impl CredentialsError {
 }
 
 pub fn init(cfg: &mut web::ServiceConfig) {
+    cfg.service(series::post_series);
     cfg.service(index::get_index);
     cfg.service(results::get_results);
     cfg.service(competitions::get_competition);
