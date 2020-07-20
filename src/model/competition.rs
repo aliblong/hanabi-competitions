@@ -6,41 +6,13 @@ use chrono::{Weekday, Duration, Datelike};
 use crate::{DbViewerPool, DbAdminPool, model::{Tx, UtcDateTime}};
 use anyhow::Result;
 
-// This is used with handlebars, hence the use of Vec rather than HashMap
-pub type CompetitionsGroupedBySeries = Vec<SeriesCompetitions>;
+//// This is used with handlebars, hence the use of Vec rather than HashMap
+// pub type CompetitionsGroupedBySeries = Vec<SeriesCompetitions>;
 
 #[derive(Serialize, Deserialize)]
 pub struct SeriesCompetitions {
     series_name: String,
     competitions: Vec<CompetitionWithDerivedQuantities>,
-}
-
-pub fn group_competitions_by_series(competitions: Vec<CompetitionWithDerivedQuantities>)
--> CompetitionsGroupedBySeries {
-    let mut series_competitions_map =
-        HashMap::<Option<String>, Vec<CompetitionWithDerivedQuantities>>::new();
-    for competition in competitions.into_iter() {
-        let series_name = &competition.competition.series_name;
-        match series_competitions_map.get_mut(&competition.competition.series_name) {
-            Some(series_competitions) => {
-                series_competitions.push(competition);
-            }
-            None => {
-                series_competitions_map.insert(series_name.to_owned(), vec![competition]);
-            }
-        }
-    }
-    series_competitions_map.into_iter().map(
-        |(series_name_option, competitions)| {
-            let series_name = match series_name_option {
-                Some(name) => name,
-                None => "No associated series".to_owned(),
-            };
-            SeriesCompetitions {
-                series_name,
-                competitions,
-            }
-        }).collect()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -53,7 +25,7 @@ pub struct PartiallySpecifiedCompetition {
     pub characters_enabled: Option<bool>,
     pub additional_rules: Option<String>,
     pub base_seed_names: Option<Vec<String>>,
-    pub series_name: Option<String>,
+    pub series_names: Option<Vec<String>>,
 }
 
 #[derive(FromRow)]
@@ -84,7 +56,7 @@ pub struct CompetitionRuleset {
 pub struct Competition {
     pub ruleset: CompetitionRuleset,
     pub base_seed_names: Vec<String>,
-    pub series_name: Option<String>,
+    pub series_names: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -236,10 +208,42 @@ impl PartiallySpecifiedCompetition {
                 additional_rules: self.additional_rules,
             },
             base_seed_names: self.base_seed_names.unwrap(),
-            series_name: self.series_name,
+            series_names: self.series_names,
         }
     }
 }
+
+/*
+pub fn group_competitions_by_series(competitions: Vec<CompetitionWithDerivedQuantities>)
+-> CompetitionsGroupedBySeries {
+    let mut series_competitions_map =
+        HashMap::<Option<String>, Vec<CompetitionWithDerivedQuantities>>::new();
+    for competition in competitions.into_iter() {
+        let series_names = &competition.competition.series_names;
+        for series_name in &series_names {
+            match series_competitions_map.get_mut(&competition.competition.series_name) {
+                Some(series_competitions) => {
+                    series_competitions.push(competition);
+                }
+                None => {
+                    series_competitions_map.insert(series_name.to_owned(), vec![competition]);
+                }
+            }
+        }
+    }
+    series_competitions_map.into_iter().map(
+        |(series_name_option, competitions)| {
+            let series_name = match series_name_option {
+                Some(name) => name,
+                None => "No associated series".to_owned(),
+            };
+            SeriesCompetitions {
+                series_name,
+                competitions,
+            }
+        }).collect()
+}
+*/
 
 pub async fn add_competitions(
     pool: &DbAdminPool,
@@ -554,25 +558,27 @@ async fn add_competition(
         ruleset.additional_rules,
     ).fetch_one(&mut tx).await?.id;
 
-    match &competition.series_name {
-        Some(name) => {
-            let series_id = sqlx::query!(
-                "select id
-                from series
-                where name = $1",
-                name,
-            ).fetch_one(&mut tx).await?.id;
-            sqlx::query!(
-                "insert into series_competitions (
-                    series_id
-                  , competition_id
-                ) values (
-                    $1
-                  , $2
-                )",
-                series_id,
-                competition_id
-            ).execute(&mut tx).await?;
+    match &competition.series_names {
+        Some(names) => {
+            for name in &names {
+                let series_id = sqlx::query!(
+                    "select id
+                    from series
+                    where name = $1",
+                    name,
+                ).fetch_one(&mut tx).await?.id;
+                sqlx::query!(
+                    "insert into series_competitions (
+                        series_id
+                      , competition_id
+                    ) values (
+                        $1
+                      , $2
+                    )",
+                    series_id,
+                    competition_id
+                ).execute(&mut tx).await?;
+            }
         },
         None => ()
     }
