@@ -1,13 +1,19 @@
 use std::collections::HashMap;
-use sqlx::{FromRow, postgres::*};
+use sqlx::{FromRow, postgres::*, Row};
 
 use serde::{Serialize, Deserialize};
 use chrono::{Weekday, Duration, Datelike};
 use crate::{DbViewerPool, DbAdminPool, model::{Tx, UtcDateTime}};
 use anyhow::Result;
+use sqlx::postgres::PgRow;
 
 //// This is used with handlebars, hence the use of Vec rather than HashMap
 // pub type CompetitionsGroupedBySeries = Vec<SeriesCompetitions>;
+
+//// This is a huge pain in the ass at the time I'm writing this code
+//#[derive(sqlx::Type, Serialize, Deserialize, Debug)]
+//#[sqlx(rename = "scoring_type", rename_all = "lowercase")]
+//enum ScoringType { Standard, Speedrun }
 
 #[derive(Serialize, Deserialize)]
 pub struct SeriesCompetitions {
@@ -23,22 +29,12 @@ pub struct PartiallySpecifiedCompetition {
     pub deckplay_enabled: Option<bool>,
     pub empty_clues_enabled: Option<bool>,
     pub characters_enabled: Option<bool>,
+    pub scoring_type: Option<String>,
+    pub base_time_seconds: Option<i16>,
+    pub turn_time_seconds: Option<i16>,
     pub additional_rules: Option<String>,
     pub base_seed_names: Option<Vec<String>>,
     pub series_names: Option<Vec<String>>,
-}
-
-#[derive(FromRow)]
-struct CompetitionRulesetWithIds {
-    pub competition_id: i16,
-    pub variant_id: i32,
-    pub num_players: i16,
-    pub variant_name: String,
-    pub end_datetime: UtcDateTime,
-    pub deckplay_enabled: bool,
-    pub empty_clues_enabled: bool,
-    pub characters_enabled: bool,
-    pub additional_rules: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -49,6 +45,9 @@ pub struct CompetitionRuleset {
     pub deckplay_enabled: bool,
     pub empty_clues_enabled: bool,
     pub characters_enabled: bool,
+    pub scoring_type: String,
+    pub base_time_seconds: Option<i16>,
+    pub turn_time_seconds: Option<i16>,
     pub additional_rules: Option<String>,
 }
 
@@ -56,7 +55,7 @@ pub struct CompetitionRuleset {
 pub struct Competition {
     pub ruleset: CompetitionRuleset,
     pub base_seed_names: Vec<String>,
-    pub series_names: Option<Vec<String>>,
+    pub series_names: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -120,6 +119,22 @@ struct CompetitionFlatResult {
     // support for the INTERVAL type landed literally less than a week ago, so look out for a
     // release: https://github.com/launchbadge/sqlx/pull/271
     pub game_duration_seconds: i32,
+}
+
+#[derive(FromRow)]
+struct CompetitionRulesetWithIds {
+    pub competition_id: i16,
+    pub variant_id: i32,
+    pub num_players: i16,
+    pub variant_name: String,
+    pub end_datetime: UtcDateTime,
+    pub deckplay_enabled: bool,
+    pub empty_clues_enabled: bool,
+    pub characters_enabled: bool,
+    pub scoring_type: String,
+    pub base_time_seconds: Option<i16>,
+    pub turn_time_seconds: Option<i16>,
+    pub additional_rules: Option<String>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -186,6 +201,10 @@ impl PartiallySpecifiedCompetition {
         if self.deckplay_enabled.is_none() { self.deckplay_enabled = Some(true) }
         if self.empty_clues_enabled.is_none() { self.empty_clues_enabled = Some(false) }
         if self.characters_enabled.is_none() { self.characters_enabled = Some(false) }
+        if self.scoring_type.is_none() {
+            self.scoring_type = Some("standard".to_owned());
+            //self.scoring_type = Some(ScoringType::Standard);
+        }
         if self.base_seed_names.is_none() {
             let base_seed_prefix = format!(
                 "hl-comp-{}", self.end_datetime.unwrap().date().format("%Y-%m-%d")
@@ -197,6 +216,9 @@ impl PartiallySpecifiedCompetition {
                 format!("{}-4", base_seed_prefix),
             ]);
         }
+        if self.series_names.is_none() {
+            self.series_names = Some(Vec::new());
+        }
         Competition {
             ruleset: CompetitionRuleset {
                 num_players: self.num_players,
@@ -206,9 +228,12 @@ impl PartiallySpecifiedCompetition {
                 empty_clues_enabled: self.empty_clues_enabled.unwrap(),
                 characters_enabled: self.characters_enabled.unwrap(),
                 additional_rules: self.additional_rules,
+                scoring_type: self.scoring_type.unwrap(),
+                base_time_seconds: self.base_time_seconds,
+                turn_time_seconds: self.turn_time_seconds,
             },
             base_seed_names: self.base_seed_names.unwrap(),
-            series_names: self.series_names,
+            series_names: self.series_names.unwrap(),
         }
     }
 }
@@ -316,7 +341,7 @@ async fn get_competition_with_ids(
 ) -> Result<Option<CompetitionRulesetWithIds>> {
     Ok(sqlx::query_as!(
         CompetitionRulesetWithIds,
-        "select
+        r#"select
             competitions.id competition_id
           , variant_id
           , num_players
@@ -325,11 +350,15 @@ async fn get_competition_with_ids(
           , deckplay_enabled
           , empty_clues_enabled
           , characters_enabled
+          , scoring_type::text
+          , base_time_seconds
+          , turn_time_seconds
           , additional_rules
         from competitions
         join variants on variant_id = variants.id
         join competition_names on competitions.id = competition_names.competition_id
-        where competition_names.name = $1",
+        where competition_names.name = $1"#,
+        // , scoring_type as "scoring_type: String"
         competition_name
     ).fetch_optional(&pool.0).await?)
 }
@@ -339,7 +368,7 @@ async fn get_active_competitions_with_ids(
 ) -> Result<Vec<CompetitionRulesetWithIds>> {
     Ok(sqlx::query_as!(
         CompetitionRulesetWithIds,
-        "select
+        r#"select
             competitions.id competition_id
           , variant_id
           , num_players
@@ -348,11 +377,15 @@ async fn get_active_competitions_with_ids(
           , deckplay_enabled
           , empty_clues_enabled
           , characters_enabled
+          , scoring_type::text
+          , base_time_seconds
+          , turn_time_seconds
           , additional_rules
         from competitions
         join variants on variant_id = variants.id
         join competition_names on competitions.id = competition_names.competition_id
-        where end_datetime > date('2020-06-01')" //now()",
+        where end_datetime > date('2020-06-01')"# //now()",
+        // , scoring_type as "scoring_type: String"
     ).fetch_all(&pool.0).await?)
 }
 
@@ -365,16 +398,13 @@ async fn competition_with_derived_quantities_from_ruleset_with_ids(
         "select name from competition_names where competition_id = $1",
         competition_ruleset_with_ids.competition_id
     ).fetch_one(&pool.0).await?.name.unwrap();
-    let series_name = match sqlx::query!(
+    let series_names = sqlx::query!(
         "select name
         from series_competitions
         join series on series_competitions.series_id = series.id
         where competition_id = $1",
         competition_ruleset_with_ids.competition_id
-    ).fetch_optional(&pool.0).await? {
-        Some(record) => Some(record.name),
-        None => None,
-    };
+    ).fetch_all(&pool.0).await?.into_iter().map(|record| record.name).collect();
     let base_seed_name_records = sqlx::query!(
         "select base_name
         from competition_seeds
@@ -395,11 +425,14 @@ async fn competition_with_derived_quantities_from_ruleset_with_ids(
             deckplay_enabled: competition_ruleset_with_ids.deckplay_enabled,
             empty_clues_enabled: competition_ruleset_with_ids.empty_clues_enabled,
             characters_enabled: competition_ruleset_with_ids.characters_enabled,
+            scoring_type: competition_ruleset_with_ids.scoring_type,
+            base_time_seconds: competition_ruleset_with_ids.base_time_seconds,
+            turn_time_seconds: competition_ruleset_with_ids.turn_time_seconds,
             additional_rules: competition_ruleset_with_ids.additional_rules,
         },
         base_seed_names: base_seed_name_records.into_iter().map(|record|
             record.base_name).collect(),
-        series_name,
+        series_names,
     };
     Ok(CompetitionWithDerivedQuantities::new(competition, competition_name))
 }
@@ -531,14 +564,17 @@ async fn add_competition(
         ruleset.variant_name
     ).fetch_one(&mut tx).await?.id;
 
-    let competition_id = sqlx::query!(
-        "INSERT INTO competitions (
+    let competition_id = sqlx::query(
+        r#"INSERT INTO competitions (
             end_datetime
           , num_players
           , variant_id
           , deckplay_enabled
           , empty_clues_enabled
           , characters_enabled
+          , scoring_type
+          , base_time_seconds
+          , turn_time_seconds
           , additional_rules
         ) VALUES (
             $1
@@ -548,39 +584,41 @@ async fn add_competition(
           , $5
           , $6
           , $7
-        ) RETURNING id",
-        ruleset.end_datetime,
-        ruleset.num_players,
-        variant_id,
-        ruleset.deckplay_enabled,
-        ruleset.empty_clues_enabled,
-        ruleset.characters_enabled,
-        ruleset.additional_rules,
-    ).fetch_one(&mut tx).await?.id;
+          , $8
+          , $9
+          , $10
+        ) RETURNING id"#)
+        .bind(ruleset.end_datetime)
+        .bind(ruleset.num_players)
+        .bind(variant_id)
+        .bind(ruleset.deckplay_enabled)
+        .bind(ruleset.empty_clues_enabled)
+        .bind(ruleset.characters_enabled)
+        .bind(&ruleset.scoring_type)
+        .bind(ruleset.base_time_seconds)
+        .bind(ruleset.turn_time_seconds)
+        .bind(&ruleset.additional_rules)
+        .map(|row: PgRow| row.get(0))
+        .fetch_one(&mut tx).await?;
 
-    match &competition.series_names {
-        Some(names) => {
-            for name in &names {
-                let series_id = sqlx::query!(
-                    "select id
-                    from series
-                    where name = $1",
-                    name,
-                ).fetch_one(&mut tx).await?.id;
-                sqlx::query!(
-                    "insert into series_competitions (
-                        series_id
-                      , competition_id
-                    ) values (
-                        $1
-                      , $2
-                    )",
-                    series_id,
-                    competition_id
-                ).execute(&mut tx).await?;
-            }
-        },
-        None => ()
+    for series_name in &competition.series_names {
+        let series_id = sqlx::query!(
+            "select id
+            from series
+            where name = $1",
+            series_name,
+        ).fetch_one(&mut tx).await?.id;
+        sqlx::query!(
+            "insert into series_competitions (
+                series_id
+              , competition_id
+            ) values (
+                $1
+              , $2
+            )",
+            series_id,
+            competition_id
+        ).execute(&mut tx).await?;
     }
 
     for base_seed_name in competition.base_seed_names {

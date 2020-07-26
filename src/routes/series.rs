@@ -1,9 +1,43 @@
-use actix_web::{post, web, HttpResponse, Error, HttpRequest};
+use actix_web::{get, post, web, HttpResponse, Error, HttpRequest};
 use crate::{
     model::series::{add_series, Series},
     routes::{authenticate, AdminCredentials},
+    DbViewerPool,
     DbAdminPool,
 };
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct SeriesQueryParams {
+    pub raw: Option<bool>,
+}
+
+#[get("/series/{name}")]
+async fn get_series(
+    query_params: serde_qs::actix::QsQuery<SeriesQueryParams>,
+    wrapped_series_name: web::Path<String>,
+    db_pool: web::Data<DbViewerPool>,
+    hb: web::Data<handlebars::Handlebars<'_>>,
+) -> Result<HttpResponse, Error> {
+    let unwrapped_query_params = query_params.into_inner();
+    let series_name = wrapped_series_name.into_inner();
+    let raw_output_flag = unwrapped_query_params.raw;
+    match crate::model::series::get_series_names(&db_pool.get_ref()).await {
+        Ok(results) => {
+            if raw_output_flag.is_some() && raw_output_flag.unwrap() {
+                Ok(HttpResponse::Ok().json(serde_json::to_string(&results).unwrap()))
+            } else {
+                Ok(HttpResponse::Ok()
+                    //.header("LOCATION", "/static/lobby_browser.html")
+                    .content_type("text/html; charset=utf-8")
+                    .body(hb.render("series", &results).unwrap()))
+            }
+        }
+        Err(err) => {
+            println!("{:?}", err);
+            Ok(HttpResponse::BadRequest().body("Malformed request"))
+        }
+    }
+}
 
 #[post("/series")]
 async fn post_series(

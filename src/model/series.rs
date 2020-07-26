@@ -24,6 +24,20 @@ pub async fn add_series(
     Ok(())
 }
 
+pub async fn get_series_names(
+    pool: &DbViewerPool,
+) -> Result<Vec<String>> {
+    let series_name_records = sqlx::query!(
+        "select name
+        from series
+        order by name desc",
+    ).fetch_all(&pool.0).await?;
+    let series_names = series_name_records.into_iter().map(
+        |record| record.name).collect();
+    Ok(series_names)
+}
+
+
 async fn add_single_series(
     mut tx: Tx,
     series: Series,

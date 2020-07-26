@@ -15,6 +15,8 @@ create table if not exists variants (
   , name text not null check(length(name) > 0)
 );
 
+create type scoring_type as enum ('standard', 'speedrun');
+
 create table if not exists competitions (
     id smallint primary key generated always as identity
   , end_datetime timestamptz not null check(end_datetime > date('2020-05-01'))
@@ -24,6 +26,9 @@ create table if not exists competitions (
   , deckplay_enabled boolean not null default true
   , empty_clues_enabled boolean not null default false
   , characters_enabled boolean not null default false
+  , scoring_type scoring_type not null default 'standard'
+  , base_time_seconds smallint
+  , turn_time_seconds smallint
   , additional_rules text
   , unique (end_date, num_players, variant_id)
     -- putting a unique constraint on id and any other columns to be used as a foreign
@@ -138,6 +143,7 @@ with base_cte as (
       , games.turns
       , games.datetime_started datetime_game_started
       , games.datetime_ended datetime_game_ended
+      , competitions.scoring
     from competitions
     join competition_seeds on competition_seeds.competition_id = competitions.id
     join games on competition_seeds.id = games.seed_id
@@ -187,9 +193,15 @@ games_selected as (
       , turns
       , datetime_game_started
       , datetime_game_ended
-      , cast(
-            rank() over(partition by seed_id order by score desc, turns)
-        as int) seed_rank
+      , cast(case
+            when scoring = 'speedrun'
+                then rank() over(partition by seed_id order by
+                    score desc,
+                    datetime_game_ended - datetime_game_started
+                )
+            else  -- standard
+                rank() over(partition by seed_id order by score desc, turns)
+        end as int) as seed_rank
       , cast(count(*) over(partition by seed_id) as int) num_seed_participants
       , cast(count(*) over(partition by competition_id) as int) num_comp_participants
     from base_cte

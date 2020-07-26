@@ -15,4 +15,6 @@ use sqlx::postgres::*;
 pub type UtcDateTime = chrono::DateTime<chrono::offset::Utc>;
 pub type Date = chrono::NaiveDate;
 pub type Tx = sqlx::Transaction<sqlx::pool::PoolConnection<sqlx::PgConnection>>;
+//pub type Tx = sqlx::Transaction<Postgres>;
+//pub type Tx<'a> = sqlx::Transaction<Postgres + 'a>
 // %Y-%m-%dT%H:%M:%S.%f%z

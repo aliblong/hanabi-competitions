@@ -29,49 +29,54 @@
     </form>
     <a href="/about#howto_search_across_competitions" target="_blank">Guide to using this feature</a>
     <h2>Active competitions</h2>
-    {{#each active_series_competitions}}
-        <h3>{{series_name}}</h3>
-        {{#each competitions}}
-            <h4>{{competition_name}}</h4>
-            <table>
-              {{#with competition}}
-              <tr>
-                <th>Competition deadline</th>
-                <td>{{end_datetime}}</td>
-              </tr>
-              <tr>
-                <th>Number of players</th>
-                <td>{{num_players}}</td>
-              </tr>
-              <tr>
-                <th>Variant</th>
-                <td>{{variant}}</td>
-              </tr>
-              <tr>
-                <th>Deckplay enabled</th>
-                <td>{{deckplay_enabled}}</td>
-              </tr>
-              <tr>
-                <th>Empty clues enabled</th>
-                <td>{{empty_clues_enabled}}</td>
-              </tr>
-              <tr>
-                <th>Detrimental characters enabled</th>
-                <td>{{characters_enabled}}</td>
-              </tr>
-              <tr>
-                <th>Additional Rules</th>
-                <td>{{additional_rules}}</td>
-              </tr>
-              {{/with}}
-              {{#each create_table_urls}}
-              <tr>
-                <th>Seed {{@index}}</th>
-                <td><a href="{{create_table_url}}">{{base_seed_name}}</a></td>
-              </tr>
-              {{/each}}
-            </table>
-        {{/each}}
+    {{#each active_competitions}}
+        <h3>{{competition_name}}</h3>
+        <table>
+          {{#with competition}}
+          <tr>
+            <th>Series</th>
+            <a href="/series/{{series_name}}">{{#each series_names}}</a>
+            <td>{{this}}</td>
+            {{/each}}
+          </tr>
+          {{#with ruleset}}
+          <tr>
+            <th>Competition deadline</th>
+            <td>{{end_datetime}}</td>
+          </tr>
+          <tr>
+            <th>Number of players</th>
+            <td>{{num_players}}</td>
+          </tr>
+          <tr>
+            <th>Variant</th>
+            <td>{{variant}}</td>
+          </tr>
+          <tr>
+            <th>Deckplay enabled</th>
+            <td>{{deckplay_enabled}}</td>
+          </tr>
+          <tr>
+            <th>Empty clues enabled</th>
+            <td>{{empty_clues_enabled}}</td>
+          </tr>
+          <tr>
+            <th>Detrimental characters enabled</th>
+            <td>{{characters_enabled}}</td>
+          </tr>
+          <tr>
+            <th>Additional Rules</th>
+            <td>{{additional_rules}}</td>
+          </tr>
+          {{/with}}
+          {{/with}}
+          {{#each create_table_urls}}
+          <tr>
+            <th>Seed {{@index}}</th>
+            <td><a href="{{create_table_url}}">{{base_seed_name}}</a></td>
+          </tr>
+          {{/each}}
+        </table>
     {{/each}}
 </main>
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>

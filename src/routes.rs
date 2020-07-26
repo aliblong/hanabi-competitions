@@ -101,6 +101,7 @@ impl CredentialsError {
 }
 
 pub fn init(cfg: &mut web::ServiceConfig) {
+    cfg.service(series::get_series);
     cfg.service(series::post_series);
     cfg.service(index::get_index);
     cfg.service(results::get_results);
