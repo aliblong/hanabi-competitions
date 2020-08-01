@@ -15,7 +15,7 @@ create table if not exists variants (
   , name text not null check(length(name) > 0)
 );
 
-create type scoring_type as enum ('standard', 'speedrun');
+create type if not exists scoring_type as enum ('standard', 'speedrun');
 
 create table if not exists competitions (
     id smallint primary key generated always as identity
@@ -27,10 +27,16 @@ create table if not exists competitions (
   , empty_clues_enabled boolean not null default false
   , characters_enabled boolean not null default false
   , scoring_type scoring_type not null default 'standard'
-  , base_time_seconds smallint
-  , turn_time_seconds smallint
+    -- keeping these under an hour simplifies time formatting, and there should
+    -- be no good reason to give a time control longer than an hour
+  , base_time_seconds smallint not null check (base_time_seconds < 3600 and base_time_seconds > 0)
+  , turn_time_seconds smallint not null check (turn_time_seconds < 3600 and turn_time_seconds > 0)
+  , check (
+        (base_time_seconds is not null and turn_time_seconds is not null) 
+        or (base_time_seconds is null and turn_time_seconds is null)
+    )
   , additional_rules text
-  , unique (end_date, num_players, variant_id)
+  , unique (end_date, num_players, variant_id, scoring_type, time_control_id)
     -- putting a unique constraint on id and any other columns to be used as a foreign
     -- composite key is required, and tbh I don't fully understand why; if id is the primary
     -- key, its combination with other columns is necessarily unique
@@ -124,6 +130,18 @@ create materialized view if not exists competition_names as (
           , cast(competitions.num_players as text)
           , 'p '
           , variants.name
+          , (case
+                when scoring_type = 'speedrun'
+                    then 'speedrun'
+                -- constraint ensures turn_time_seconds is also not null
+                when base_time_seconds is not null
+                    then concat(
+                        (base_time_seconds * '1 second'::interval, 'MI:SS')
+                      , ' + '
+                      , (turn_time_seconds * '1 second'::interval, 'MI:SS')
+                    )
+                else ''
+            end)
         ) as name
     from competitions
     join variants on competitions.variant_id = variants.id
@@ -143,7 +161,7 @@ with base_cte as (
       , games.turns
       , games.datetime_started datetime_game_started
       , games.datetime_ended datetime_game_ended
-      , competitions.scoring
+      , competitions.scoring_type
     from competitions
     join competition_seeds on competition_seeds.competition_id = competitions.id
     join games on competition_seeds.id = games.seed_id
@@ -194,7 +212,7 @@ games_selected as (
       , datetime_game_started
       , datetime_game_ended
       , cast(case
-            when scoring = 'speedrun'
+            when scoring_type = 'speedrun'
                 then rank() over(partition by seed_id order by
                     score desc,
                     datetime_game_ended - datetime_game_started

@@ -21,6 +21,12 @@ pub struct SeriesCompetitions {
     competitions: Vec<CompetitionWithDerivedQuantities>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TimeControl {
+    pub base_time_seconds: i16,
+    pub turn_time_seconds: i16,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct PartiallySpecifiedCompetition {
     pub num_players: i16,
@@ -30,8 +36,7 @@ pub struct PartiallySpecifiedCompetition {
     pub empty_clues_enabled: Option<bool>,
     pub characters_enabled: Option<bool>,
     pub scoring_type: Option<String>,
-    pub base_time_seconds: Option<i16>,
-    pub turn_time_seconds: Option<i16>,
+    pub time_control: Option<TimeControl>,
     pub additional_rules: Option<String>,
     pub base_seed_names: Option<Vec<String>>,
     pub series_names: Option<Vec<String>>,
@@ -46,8 +51,7 @@ pub struct CompetitionRuleset {
     pub empty_clues_enabled: bool,
     pub characters_enabled: bool,
     pub scoring_type: String,
-    pub base_time_seconds: Option<i16>,
-    pub turn_time_seconds: Option<i16>,
+    pub time_control: Option<TimeControl>,
     pub additional_rules: Option<String>,
 }
 
@@ -63,6 +67,7 @@ pub struct CompetitionWithDerivedQuantities {
     pub competition: Competition,
     pub competition_name: String,
     pub create_table_urls: Vec<BaseSeedNameCreateTableUrlPair>,
+    pub formatted_time_control: String,
 }
 
 // This bit of ugliness is due to needing to pipe this into handlebars.
@@ -151,10 +156,27 @@ impl CompetitionWithDerivedQuantities {
                 base_seed_name: base_seed_name.clone(),
                 create_table_url
             }).collect();
+        let formatted_time_control = match &competition.ruleset.time_control {
+            None => "".to_owned(),
+            Some(time_control) => {
+                let base_time_duration =
+                    chrono::Duration::seconds(time_control.base_time_seconds as i64);
+                let turn_time_duration =
+                    chrono::Duration::seconds(time_control.turn_time_seconds as i64);
+                format!(
+                    "{}:{} + {}:{}",
+                    base_time_duration.num_minutes(), 
+                    base_time_duration.num_seconds() % 60, 
+                    base_time_duration.num_minutes(), 
+                    base_time_duration.num_seconds() % 60, 
+                )
+            }
+        };
         Self {
             create_table_urls: seed_name_create_table_url_pairs,
             competition,
             competition_name,
+            formatted_time_control,
         }
     }
 }
@@ -164,16 +186,18 @@ impl Competition {
         let mut create_table_urls = Vec::new();
         let ruleset = &self.ruleset;
         for base_seed_name in &self.base_seed_names {
-            create_table_urls.push(format!("https://hanabi.live/create-table?\
+            create_table_urls.push(format!("https://hanab.live/create-table?\
                 name=!seed%20{}\
                 &variantName={}\
                 &deckPlays={}\
                 &emptyClues={}\
+                &speedrun={}\
                 &detrimentalCharacters={}",
                 urlencoding::encode(&base_seed_name),
                 urlencoding::encode(&ruleset.variant_name),
                 ruleset.deckplay_enabled,
                 ruleset.empty_clues_enabled,
+                ruleset.scoring_type == "speedrun",
                 ruleset.characters_enabled,
             ));
         }
@@ -229,8 +253,7 @@ impl PartiallySpecifiedCompetition {
                 characters_enabled: self.characters_enabled.unwrap(),
                 additional_rules: self.additional_rules,
                 scoring_type: self.scoring_type.unwrap(),
-                base_time_seconds: self.base_time_seconds,
-                turn_time_seconds: self.turn_time_seconds,
+                time_control: self.time_control,
             },
             base_seed_names: self.base_seed_names.unwrap(),
             series_names: self.series_names.unwrap(),
@@ -426,8 +449,22 @@ async fn competition_with_derived_quantities_from_ruleset_with_ids(
             empty_clues_enabled: competition_ruleset_with_ids.empty_clues_enabled,
             characters_enabled: competition_ruleset_with_ids.characters_enabled,
             scoring_type: competition_ruleset_with_ids.scoring_type,
-            base_time_seconds: competition_ruleset_with_ids.base_time_seconds,
-            turn_time_seconds: competition_ruleset_with_ids.turn_time_seconds,
+            time_control: match (
+                competition_ruleset_with_ids.base_time_seconds,
+                competition_ruleset_with_ids.turn_time_seconds,
+            ) {
+                (None, None) => None,
+                (Some(base_time_seconds), Some(turn_time_seconds)) => {
+                    Some(TimeControl {
+                        base_time_seconds,
+                        turn_time_seconds,
+                    })
+                },
+                _ => unreachable!(
+                    "Base time and turn time have composite nullability, \
+                    enforced by a db constraint"
+                ),
+            },
             additional_rules: competition_ruleset_with_ids.additional_rules,
         },
         base_seed_names: base_seed_name_records.into_iter().map(|record|
@@ -564,6 +601,14 @@ async fn add_competition(
         ruleset.variant_name
     ).fetch_one(&mut tx).await?.id;
 
+    let (base_time_seconds, turn_time_seconds) = match &ruleset.time_control {
+        None => (None, None),
+        Some(time_control) => (
+            Some(time_control.base_time_seconds),
+            Some(time_control.turn_time_seconds),
+        ),
+    };
+
     let competition_id = sqlx::query(
         r#"INSERT INTO competitions (
             end_datetime
@@ -595,8 +640,8 @@ async fn add_competition(
         .bind(ruleset.empty_clues_enabled)
         .bind(ruleset.characters_enabled)
         .bind(&ruleset.scoring_type)
-        .bind(ruleset.base_time_seconds)
-        .bind(ruleset.turn_time_seconds)
+        .bind(base_time_seconds)
+        .bind(turn_time_seconds)
         .bind(&ruleset.additional_rules)
         .map(|row: PgRow| row.get(0))
         .fetch_one(&mut tx).await?;
