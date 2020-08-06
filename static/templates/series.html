@@ -11,67 +11,69 @@
 </head>
 <body>
 <main>
-    {{#with competition_with_derived_quantities}}
-    <h1>Competition: {{competition_name}}</h1>
-    <table>
-        {{#with competition}}
-        <tr>
-          <th>Series</th>
-          {{#each series_names}}
-          <td><a href='/series/{{this}}'>{{this}}</a></td>
+    <h1>Series: {{series_name}}</h1>
+    <h2>Active competitions</h2>
+    {{#each active_competitions}}
+        <h3>{{competition_name}}</h3>
+        <table>
+          {{#with competition}}
+          <tr>
+            <th>Series</th>
+            {{#each series_names}}
+            <td><a href='/series/{{this}}'>{{this}}</a></td>
+            {{/each}}
+          </tr>
+          {{#with ruleset}}
+          <tr>
+            <th>Competition deadline</th>
+            <td>{{end_datetime}}</td>
+          </tr>
+          <tr>
+            <th>Number of players</th>
+            <td>{{num_players}}</td>
+          </tr>
+          <tr>
+            <th>Variant</th>
+            <td>{{variant_name}}</td>
+          </tr>
+          <tr>
+            <th>Scoring Type</th>
+            <td>{{scoring_type}}</td>
+          </tr>
+          {{/with}}
+          {{/with}}
+          <tr>
+            <th>Time control</th>
+            <td>{{formatted_time_control}}</td>
+          </tr>
+          {{#with competition}}
+          {{#with ruleset}}
+          <tr>
+            <th>Deckplay enabled</th>
+            <td>{{deckplay_enabled}}</td>
+          </tr>
+          <tr>
+            <th>Empty clues enabled</th>
+            <td>{{empty_clues_enabled}}</td>
+          </tr>
+          <tr>
+            <th>Detrimental characters enabled</th>
+            <td>{{characters_enabled}}</td>
+          </tr>
+          <tr>
+            <th>Additional Rules</th>
+            <td>{{additional_rules}}</td>
+          </tr>
+          {{/with}}
+          {{/with}}
+          {{#each create_table_urls}}
+          <tr>
+            <th>Seed {{@index}}</th>
+            <td><a href="{{create_table_url}}">{{base_seed_name}}</a></td>
+          </tr>
           {{/each}}
-        </tr>
-        {{#with ruleset}}
-        <tr>
-          <th>Competition deadline</th>
-          <td>{{end_datetime}}</td>
-        </tr>
-        <tr>
-          <th>Number of players</th>
-          <td>{{num_players}}</td>
-        </tr>
-        <tr>
-          <th>Variant</th>
-          <td>{{variant_name}}</td>
-        </tr>
-        <tr>
-          <th>Scoring Type</th>
-          <td>{{scoring_type}}</td>
-        </tr>
-        {{/with}}
-        {{/with}}
-        <tr>
-          <th>Time control</th>
-          <td>{{formatted_time_control}}</td>
-        </tr>
-        {{#with competition}}
-        {{#with ruleset}}
-        <tr>
-          <th>Deckplay enabled</th>
-          <td>{{deckplay_enabled}}</td>
-        </tr>
-        <tr>
-          <th>Empty clues enabled</th>
-          <td>{{empty_clues_enabled}}</td>
-        </tr>
-        <tr>
-          <th>Detrimental characters enabled</th>
-          <td>{{characters_enabled}}</td>
-        </tr>
-        <tr>
-          <th>Additional Rules</th>
-          <td>{{additional_rules}}</td>
-        </tr>
-        {{/with}}
-        {{/with}}
-        <tr>
-          <th>Seeds</th>
-        {{#each create_table_urls}}
-          <td><a href="{{create_table_url}}">{{base_seed_name}}</a></td>
-        {{/each}}
-        </tr>
-    </table>
-    {{/with}}
+        </table>
+    {{/each}}
   <div class="table-wrapper">
     <table>
       <thead>

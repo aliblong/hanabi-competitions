@@ -35,8 +35,8 @@
           {{#with competition}}
           <tr>
             <th>Series</th>
-            <a href="/series/{{series_name}}">{{#each series_names}}</a>
-            <td>{{this}}</td>
+            {{#each series_names}}
+            <td><a href='/series/{{this}}'>{{this}}</a></td>
             {{/each}}
           </tr>
           {{#with ruleset}}
@@ -50,8 +50,20 @@
           </tr>
           <tr>
             <th>Variant</th>
-            <td>{{variant}}</td>
+            <td>{{variant_name}}</td>
           </tr>
+          <tr>
+            <th>Scoring Type</th>
+            <td>{{scoring_type}}</td>
+          </tr>
+          {{/with}}
+          {{/with}}
+          <tr>
+            <th>Time control</th>
+            <td>{{formatted_time_control}}</td>
+          </tr>
+          {{#with competition}}
+          {{#with ruleset}}
           <tr>
             <th>Deckplay enabled</th>
             <td>{{deckplay_enabled}}</td>

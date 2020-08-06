@@ -167,8 +167,8 @@ impl CompetitionWithDerivedQuantities {
                     "{}:{} + {}:{}",
                     base_time_duration.num_minutes(), 
                     base_time_duration.num_seconds() % 60, 
-                    base_time_duration.num_minutes(), 
-                    base_time_duration.num_seconds() % 60, 
+                    turn_time_duration.num_minutes(), 
+                    turn_time_duration.num_seconds() % 60, 
                 )
             }
         };
@@ -185,20 +185,36 @@ impl Competition {
     pub fn generate_create_table_urls(&self) -> Vec<String> {
         let mut create_table_urls = Vec::new();
         let ruleset = &self.ruleset;
+        let time_control_query_parameters_str = match &self.ruleset.time_control {
+            None => "".to_owned(),
+            Some(time_control) => format!("\
+                &timed=true\
+                &timeBase={}\
+                &timePerTurn={}\
+                ",
+                time_control.base_time_seconds,
+                time_control.turn_time_seconds,
+            ),
+        };
         for base_seed_name in &self.base_seed_names {
             create_table_urls.push(format!("https://hanab.live/create-table?\
                 name=!seed%20{}\
                 &variantName={}\
                 &deckPlays={}\
                 &emptyClues={}\
-                &speedrun={}\
-                &detrimentalCharacters={}",
+                &detrimentalCharacters={}\
+                {}
+                ",
+                //&speedrun={}\
                 urlencoding::encode(&base_seed_name),
                 urlencoding::encode(&ruleset.variant_name),
                 ruleset.deckplay_enabled,
                 ruleset.empty_clues_enabled,
-                ruleset.scoring_type == "speedrun",
+                // TODO: enable whatever feature we get for speedruns that don't end
+                // when a critical card is lost
+                // ruleset.scoring_type == "speedrun",
                 ruleset.characters_enabled,
+                time_control_query_parameters_str,
             ));
         }
         create_table_urls
