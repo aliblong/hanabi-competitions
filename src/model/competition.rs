@@ -342,14 +342,15 @@ pub async fn get_competition_and_nested_results(
     pool: &DbViewerPool,
     competition_name: &str
 ) -> Result<CompetitionNestedResults> {
-    let competition_ruleset_with_ids = get_competition_with_ids(pool, competition_name).await?;
-    if competition_ruleset_with_ids.is_none() {
+    let competition_id = get_competition_id(pool, competition_name).await?;
+    if competition_id.is_none() {
         return Err(GetCompetitionError::NotFound.into());
     }
+    let competition_ruleset_with_ids = get_competition_with_ids(pool, competition_id.unwrap()).await?;
     let competition_with_derived_quantities =
         competition_with_derived_quantities_from_ruleset_with_ids(
             pool,
-            competition_ruleset_with_ids.unwrap(),
+            competition_ruleset_with_ids,
         ).await?;
     let competition_flat_results = get_competition_flat_results(
         pool,
@@ -361,7 +362,11 @@ pub async fn get_competition_and_nested_results(
 pub async fn get_active_competitions(
     pool: &DbViewerPool,
 ) -> Result<Vec<CompetitionWithDerivedQuantities>> {
-    let active_competitions_rulesets_with_ids = get_active_competitions_with_ids(pool).await?;
+    let active_competition_ids = get_active_competition_ids(pool).await?;
+    let mut active_competitions_rulesets_with_ids = Vec::new();
+    for id in active_competition_ids.into_iter() {
+        active_competitions_rulesets_with_ids.push(get_competition_with_ids(pool, id).await?);
+    }
     let mut competitions_with_derived_quantities = Vec::new();
     for ruleset_with_ids in active_competitions_rulesets_with_ids {
         competitions_with_derived_quantities.push(
@@ -374,37 +379,22 @@ pub async fn get_active_competitions(
     Ok(competitions_with_derived_quantities)
 }
 
-async fn get_competition_with_ids(
+async fn get_competition_id(
     pool: &DbViewerPool,
     competition_name: &str,
-) -> Result<Option<CompetitionRulesetWithIds>> {
-    Ok(sqlx::query_as!(
-        CompetitionRulesetWithIds,
-        r#"select
-            competitions.id competition_id
-          , variant_id
-          , num_players
-          , variants.name variant_name
-          , end_datetime
-          , deckplay_enabled
-          , empty_clues_enabled
-          , characters_enabled
-          , scoring_type::text
-          , base_time_seconds
-          , turn_time_seconds
-          , additional_rules
-        from competitions
-        join variants on variant_id = variants.id
-        join competition_names on competitions.id = competition_names.competition_id
-        where competition_names.name = $1"#,
-        // , scoring_type as "scoring_type: String"
-        competition_name
-    ).fetch_optional(&pool.0).await?)
+) -> Result<Option<i16>> {
+    Ok(sqlx::query!(
+        "select competition_id
+        from competition_names
+        where name = $1",
+        competition_name,
+    ).fetch_optional(&pool.0).await?.map(|record| record.competition_id.unwrap()))
 }
 
-async fn get_active_competitions_with_ids(
+async fn get_competition_with_ids(
     pool: &DbViewerPool,
-) -> Result<Vec<CompetitionRulesetWithIds>> {
+    competition_id: i16,
+) -> Result<CompetitionRulesetWithIds> {
     Ok(sqlx::query_as!(
         CompetitionRulesetWithIds,
         r#"select
@@ -422,10 +412,21 @@ async fn get_active_competitions_with_ids(
           , additional_rules
         from competitions
         join variants on variant_id = variants.id
-        join competition_names on competitions.id = competition_names.competition_id
+        where competitions.id = $1"#,
+        // , scoring_type as "scoring_type: String"
+        competition_id
+    ).fetch_one(&pool.0).await?)
+}
+
+async fn get_active_competition_ids(
+    pool: &DbViewerPool,
+) -> Result<Vec<i16>> {
+    Ok(sqlx::query!(
+        r#"select competitions.id
+        from competitions
         where end_datetime > date('2020-06-01')"# //now()",
         // , scoring_type as "scoring_type: String"
-    ).fetch_all(&pool.0).await?)
+    ).fetch_all(&pool.0).await?.into_iter().map(|record| record.id).collect())
 }
 
 async fn competition_with_derived_quantities_from_ruleset_with_ids(
