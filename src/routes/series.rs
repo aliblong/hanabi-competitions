@@ -21,7 +21,7 @@ async fn get_series(
     let unwrapped_query_params = query_params.into_inner();
     let series_name = wrapped_series_name.into_inner();
     let raw_output_flag = unwrapped_query_params.raw;
-    match crate::model::series::get_series_names(&db_pool.get_ref()).await {
+    match crate::model::series::get_series_leaderboard(&db_pool.get_ref(), &series_name).await {
         Ok(results) => {
             if raw_output_flag.is_some() && raw_output_flag.unwrap() {
                 Ok(HttpResponse::Ok().json(serde_json::to_string(&results).unwrap()))

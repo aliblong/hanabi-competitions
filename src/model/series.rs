@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 use crate::{DbViewerPool, DbAdminPool, model::{Tx, UtcDateTime}};
 use anyhow::Result;
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Series {
     name: String,
     first_n: i16,
@@ -25,10 +25,24 @@ pub async fn add_series(
     Ok(())
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct CompetitionResultRecordSummary {
+    pub player_name: String,
+    pub frac_mp: f64,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct LeaderboardRecord {
+    pub player_name: String,
+    pub sum_mp: f64,
+    pub mean_mp: f64,
+    pub competition_results: Vec<CompetitionResultRecordSummary>
+}
+
 pub async fn get_series_leaderboard(
     pool: &DbViewerPool,
     series_name: &str,
-) -> Result<Vec<String>> {
+) -> Result<Vec<LeaderboardRecord>> {
     let leaderboard_records = sqlx::query!(
         "select
             player_name
@@ -39,17 +53,20 @@ pub async fn get_series_leaderboard(
         --order by player_name",
         series_name,
     ).fetch_all(&pool.0).await?;
-    let leaderboard_games = HashMap::new();
+    let mut leaderboard_games = HashMap::new();
     for record in leaderboard_records.into_iter() {
-        match leaderboard_games.get_mut(&record.player_name) {
+        let player_name = record.player_name.unwrap();
+        let competition_name = record.competition_name.unwrap();
+        let frac_mp = record.fractional_mp.unwrap();
+        match leaderboard_games.get_mut(&player_name) {
             None => {
                 leaderboard_games.insert(
-                    record.player_name,
-                    (None, vec![Some((record.competition_name, record.fractional_mp))])
+                    player_name,
+                    (None, vec![(competition_name, frac_mp)])
                 );
             }
             Some((_, competitions)) => {
-                competitions.push(Some((record.competition_name, record.fractional_mp)));
+                competitions.push((competition_name, frac_mp));
             }
         }
     }
@@ -65,10 +82,22 @@ pub async fn get_series_leaderboard(
         series_name,
     ).fetch_all(&pool.0).await?;
     for record in leaderboard_aggregate_records.into_iter() {
-        let (aggregate_records, _) = leaderboard_games.get_mut(&record.player_name).unwrap();
-        *aggregate_records = Some((record.sum_frac_mp, record.mean_frac_mp));
+        let (aggregate_records, _) = leaderboard_games.get_mut(&record.player_name.unwrap()).unwrap();
+        *aggregate_records = Some((record.sum_frac_mp.unwrap(), record.mean_frac_mp.unwrap()));
     }
-    Ok(leaderboard_games)
+    Ok(leaderboard_games.into_iter().map(|(player, record)| {
+        LeaderboardRecord {
+            player_name: player,
+            sum_mp: record.0.unwrap().0,
+            mean_mp: record.0.unwrap().1,
+            competition_results: record.1.into_iter().map(|result|
+                CompetitionResultRecordSummary {
+                    player_name: result.0,
+                    frac_mp: result.1,
+                }
+            ).collect(),
+        }
+    }).collect())
 }
 
 pub async fn get_series_competitions(
