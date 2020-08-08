@@ -382,7 +382,13 @@ create or replace view series_leaderboards as (
           , row_number() over(partition by series_id, player_name order by fractional_MP desc)
                 as ranked_performance_by_series_and_player
         from first_n_competitions_by_series_and_player
-        where nth_competition_by_series_and_player <= first_n
+        where (
+            case
+                when first_n is not null
+                    then nth_competition_by_series_and_player <= first_n
+                else true
+            end
+        )
         group by
             series_id
           , series_name
@@ -397,7 +403,13 @@ create or replace view series_leaderboards as (
       , competition_name
       , fractional_MP
     from top_n_competitions_by_series_and_player
-    where ranked_performance_by_series_and_player <= top_n
+    where (
+        case
+            when top_n is not null
+                then ranked_performance_by_series_and_player <= top_n
+            else true
+        end
+    )
 );
 
 create or replace function update_computed_competition_standings()

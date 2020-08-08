@@ -9,6 +9,7 @@ use crate::{
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct SeriesQueryParams {
     pub raw: Option<bool>,
+    pub max_num_comps: Option<u8>,
 }
 
 #[get("/series/{name}")]
@@ -21,7 +22,11 @@ async fn get_series(
     let unwrapped_query_params = query_params.into_inner();
     let series_name = wrapped_series_name.into_inner();
     let raw_output_flag = unwrapped_query_params.raw;
-    match crate::model::series::get_series_leaderboard(&db_pool.get_ref(), &series_name).await {
+    let max_num_comps = match unwrapped_query_params.max_num_comps {
+        Some(max_num_comps) => max_num_comps,
+        None => 16,
+    };
+    match crate::model::series::get_series_view(&db_pool.get_ref(), &series_name, max_num_comps as i64).await {
         Ok(results) => {
             if raw_output_flag.is_some() && raw_output_flag.unwrap() {
                 Ok(HttpResponse::Ok().json(serde_json::to_string(&results).unwrap()))

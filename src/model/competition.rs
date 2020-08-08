@@ -127,7 +127,7 @@ struct CompetitionFlatResult {
 }
 
 #[derive(FromRow)]
-struct CompetitionRulesetWithIds {
+pub struct CompetitionRulesetWithIds {
     pub competition_id: i16,
     pub variant_id: i32,
     pub num_players: i16,
@@ -391,7 +391,7 @@ async fn get_competition_id(
     ).fetch_optional(&pool.0).await?.map(|record| record.competition_id.unwrap()))
 }
 
-async fn get_competition_with_ids(
+pub async fn get_competition_with_ids(
     pool: &DbViewerPool,
     competition_id: i16,
 ) -> Result<CompetitionRulesetWithIds> {
@@ -429,7 +429,7 @@ async fn get_active_competition_ids(
     ).fetch_all(&pool.0).await?.into_iter().map(|record| record.id).collect())
 }
 
-async fn competition_with_derived_quantities_from_ruleset_with_ids(
+pub async fn competition_with_derived_quantities_from_ruleset_with_ids(
     pool: &DbViewerPool,
     competition_ruleset_with_ids: CompetitionRulesetWithIds,
 ) -> Result<CompetitionWithDerivedQuantities> {
