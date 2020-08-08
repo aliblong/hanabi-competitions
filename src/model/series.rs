@@ -39,7 +39,7 @@ pub async fn add_series(
 
 #[derive(Serialize, Deserialize)]
 pub struct CompetitionResultRecordSummary {
-    pub player_name: String,
+    pub competition_name: String,
     pub frac_mp: f64,
 }
 
@@ -48,7 +48,7 @@ pub struct LeaderboardRecord {
     pub player_name: String,
     pub sum_mp: f64,
     pub mean_mp: f64,
-    pub competition_results: Vec<CompetitionResultRecordSummary>
+    pub competition_results: Vec<Option<CompetitionResultRecordSummary>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -99,7 +99,7 @@ async fn get_series_leaderboard(
             (Some((record.sum_frac_mp.unwrap(), record.mean_frac_mp.unwrap())), vec![])
         );
     }
-    let num_comps = sqlx::query!(
+    let mut num_comps = sqlx::query!(
         "select max(num_comps) max_num_comps
         from (
             select count(*) num_comps
@@ -107,7 +107,6 @@ async fn get_series_leaderboard(
             group by player_name
         ) _"
     ).fetch_one(&pool.0).await?.max_num_comps.unwrap();
-    println!("{}", num_comps);
     if num_comps <= max_num_comps {
         let leaderboard_records = sqlx::query!(
             "select
@@ -124,18 +123,26 @@ async fn get_series_leaderboard(
             competitions.push((record.competition_name.unwrap(), record.fractional_mp.unwrap()))
         }
     }
+    else {
+        num_comps = 0;
+    }
     Ok((
         leaderboard_games.into_iter().map(|(player, record)| {
+            let mut competition_results: Vec<Option<CompetitionResultRecordSummary>> =
+                record.1.into_iter().map(|result|
+                    Some(CompetitionResultRecordSummary {
+                        competition_name: result.0,
+                        frac_mp: result.1,
+                    })
+                ).collect();
+            competition_results.extend(
+                (competition_results.len()..num_comps as usize).map(|_| None)
+            );
             LeaderboardRecord {
                 player_name: player,
                 sum_mp: record.0.unwrap().0,
                 mean_mp: record.0.unwrap().1,
-                competition_results: record.1.into_iter().map(|result|
-                    CompetitionResultRecordSummary {
-                        player_name: result.0,
-                        frac_mp: result.1,
-                    }
-                ).collect(),
+                competition_results,
             }
         }).collect(),
         num_comps,

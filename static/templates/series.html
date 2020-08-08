@@ -86,11 +86,11 @@
       <thead>
         <tr>
             <!--th colspan="{math this.0.players.len "+" 3}"></th>-->
-          <th>player name</th>
-          <th>score (Σ frac. MP)</th>
-          <th>mean frac. MP</th>
+          <th data-type="text">player name</th>
+          <th data-type="text">score (Σ frac. MP)</th>
+          <th data-type="text">mean frac. MP</th>
           {{#each competition_scores_table_headers}}
-          <th>{{this}}</th>
+          <th data-type="text">{{this}}</th>
           {{/each}}
         </tr>
       </thead>
@@ -100,7 +100,7 @@
               <td>
                   {{player_name}}
               </td>
-              <td class="frac_mp">
+              <td class="sum_frac_mp">
                   {{sum_mp}}
               </td>
               <td class="frac_mp">

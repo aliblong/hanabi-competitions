@@ -6,3 +6,9 @@ for (frac_mp of frac_mp_entries) {
         ? "1"
         : parseFloat(frac_mp.innerHTML).toFixed(3).substring(1);
 }
+
+const sum_frac_mp_entries = document.getElementsByClassName("sum_frac_mp");
+
+for (sum_frac_mp of sum_frac_mp_entries) {
+    sum_frac_mp.innerHTML = parseFloat(sum_frac_mp.innerHTML).toFixed(3);
+}
