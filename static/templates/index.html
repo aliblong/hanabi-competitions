@@ -11,8 +11,22 @@
 	<link rel="stylesheet" type="text/css" href="/static/simpleSelect.css">
 </head>
 <body>
+    <ul class="navbar">
+        <li class="navbar_entry"><a class="active" href="/">Home</a></li>
+        <li class="navbar_entry"><a href="/about">About</a></li>
+        <li class="navbar_entry"><a href="/contact">Contact</a></li>
+    </ul>
 <main>
     <h1>Hanabi Competitions</h1>
+    <h2>Find a series leaderboard</h2>
+    <form id="get_series"
+        target="_blank">
+    <select id="select_series" onchange="get_series(this.form)">
+        {{#each series_names}}
+        <option>{{this}}</option>
+        {{/each}}
+    </select>
+    </form>
     <h2>Get results for a competition</h2>
     <form id="get_competition_results_nested"
         target="_blank">

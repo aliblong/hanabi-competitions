@@ -43,22 +43,6 @@ create table if not exists competitions (
   , unique (id, num_players)
 );
 
---create or replace view competition_ruleset (
---    select
---      --  competitions.id
---        competition_names.name competition_name
---      , num_players
---      , variants.name variant_name
---      , end_datetime
---      , deckplay_enabled
---      , empty_clues_enabled
---      , characters_enabled
---      , additional_rules
---    from competitions
---    join variants on variant_id = variants.id
---    join competition_names on competitions.id = competition_names.competition_id
---)
-
 create table if not exists competition_seeds (
     id smallint primary key generated always as identity
   , competition_id smallint not null
@@ -155,7 +139,7 @@ create materialized view if not exists computed_competition_standings as (
           , competition_seeds.base_name base_seed_name
           , games.id game_id
             -- if we start allowing play on different sites, revisit this
-          , concat('https://hanabi.live/replay/', games.site_game_id) replay_URL
+          , concat('https://hanab.live/replay/', games.site_game_id) replay_URL
           , games.site_game_id
           , games.score
           , games.turns
@@ -335,12 +319,6 @@ create materialized view if not exists computed_competition_standings as (
     join competition_player_ranks cpr using(competition_id, player_id)
     left join seed_characters on mp_agg.seed_id = seed_characters.character_id
     left join characters on seed_characters.character_id = characters.id
-    --order by
-    --    competition_name desc
-    --  , sum_MP desc
-    --  , base_seed_name
-    --  , game_id
-    --  , player_name
 );
 
 create or replace view series_leaderboards as (
@@ -413,7 +391,6 @@ create or replace view series_leaderboards as (
 );
 
 create or replace function update_computed_competition_standings()
---returns trigger language plpgsql
 returns void
 -- executes as superuser (postgres); only creator of matview can refresh it
 security definer
@@ -424,7 +401,6 @@ end $$
 language plpgsql;
 
 create or replace function update_competition_names()
---returns trigger language plpgsql
 returns void
 security definer
 as $$ begin

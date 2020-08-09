@@ -10,24 +10,29 @@
 	<link rel="stylesheet" type="text/css" href="/static/main.css">
 </head>
 <body>
+    <ul class="navbar">
+        <li class="navbar_entry"><a href="/">Home</a></li>
+        <li class="navbar_entry"><a class="active" href="/about">About</a></li>
+        <li class="navbar_entry"><a href="/contact">Contact</a></li>
+    </ul>
 <main>
     <h1>Hanabi Competitions</h1>
     <p>
     Welcome to Hanabi Competitions!
     This website is used to organize events where players self-assemble into teams to compete on a set of <a href="https://en.wikipedia.org/wiki/Hanabi_(card_game)">Hanabi</a> deals.
-    We currently only support play on <a href="https://hanabi.live">hanabi.live</a>.
+    We currently only support play on <a href="https://hanab.live">hanab.live</a>.
     </p>
     <h2>How it works</h2>
     <p>
     Check <a href="/">the homepage</a> for details of active competitions.
-    We also encourage you to join the hanabi.live <a href="https://discord.gg/FADvkJp">Discord server</a>, where new competitions and competition results are announced (refer to the #hl-comp-* channels there).
+    We also encourage you to join the hanab.live <a href="https://discord.gg/FADvkJp">Discord server</a>, where new competitions and competition results are announced (refer to the #hl-comp-* channels there).
     </p>
     <p>
     In order to compete, follow these easy steps:
     <ol>
-        <li>Create an account on hanabi.live (it's as simple as entering a username and password).</li>
+        <li>Create an account on hanab.live (it's as simple as entering a username and password).</li>
         <li>Organize a team of the number of players specified by the competition rules.</li>
-        <li>For each competition deal, have a player create a table on hanabi.live by following the links found on <a href="/">the homepage</a> for that competition.
+        <li>For each competition deal, have a player create a table on hanab.live by following the links found on <a href="/">the homepage</a> for that competition.
             <a href="#table_creation_params">Useful tip.</a></li>
     </ol>
     That's it.
@@ -40,12 +45,26 @@
     Competition scoring is based on the <a href="https://en.wikipedia.org/wiki/Bridge_scoring#Matchpoint_scoring">matchpoints</a> system used in bridge.
     A team gets 2 points for each team they beat, and 1 point for each team they tie.
     <a href="#scoring_philosophy">Null results, i.e. when a team plays some, but not all of the competition deals, are not "beaten".</a>
-    However, ranking is done on an <em>individual</em> basis, in order to account for teams that for whatever reason have to change members in the middle of a competitions; regardless, we recommend playing with the same team (and on <a href="#aliases">the same hanabi.live accounts</a>) for each game.
+    However, ranking is done on an <em>individual</em> basis, in order to account for teams that for whatever reason have to change members in the middle of a competitions; regardless, we recommend playing with the same team (and on <a href="#aliases">the same hanab.live accounts</a>) for each game.
     </p>
     <h3>Game result ranking</h3>
     <p>
-    Games for a deal are ranked first by <em>game score</em>, and second by <em><a href="#n_turns">the turns score</a></em>, i.e. the number of turns taken in the game.
-    Game score is the number of cards successfully played by the end of the game, despite hanabi.live <a href="#zero_score">assigning a score of 0 to strikeouts and terminations</a>.
+    There are two types of game result ranking; each competition will use one of them:
+    <ol>
+        <li><b>Standard:</b> results are ranked first by <em>game score</em>, and second by <em><a href="#n_turns">the turns score</a></em>, i.e. the number of turns taken in the game.</li>
+        <li><b>Speedrun:</b> results are ranked first by game score, and second by <em>game duration</em>.
+    </ol>
+    Game score is the number of cards successfully played by the end of the game, despite that hanab.live <a href="#zero_score">assigns a score of 0 to strikeouts and terminations</a>.
+    </p>
+    <h3>Competition series</h3>
+    <p>
+    A <em>series</em> is a collection of competitions.
+    Each participant in a series is scored according to the sum of <em>fractional matchpoints</em> — the fraction of available matchpoints won in a competition — achieved by that player across eligible competitions.
+    A series may have <em>first-</em>x and/or <em>top-</em>y scoring, meaning only a player's first <em>x</em> and top <em>y</em> competitions count toward this sum.
+    This design aims to give players an opportunity to miss one or more competitions in a series, relieving some scheduling pressure.
+    </p>
+    <p>
+    There are also special <em>all-time</em> leaderboards, which consider every competition in history matching some characteristic, but use the median score across all of them, scaled up by a function sublinear in the number of played competitions (to prevent camping on a small number of high outlier performances).
     </p>
     <h2>Universal competition rules</h2>
     <p>
@@ -58,7 +77,7 @@
     </p>
     <h2 id="aliases">Player aliases</h2>
     <p>
-    It is common for a player to make several different accounts on hanabi.live.
+    It is common for a player to make several different accounts on hanab.live.
     Although we insist that you use the same account for all your competition play, we recognize that mistakes happen.
     If you accidentally use an alternate account, <a href="/contact">contact an administrator</a>, providing the name of your main account, as well the names of all alternate accounts you may have used (indicating clearly which is the main account).
     We will update your results accordingly.
@@ -96,18 +115,18 @@
     We started with a weekly cadence for the competitions, but found it became exhausting to find time for not only playing the deals, but also practising under the ruleset and developing specialized strategies.
     We now run at a biweekly cadence.
     All of the admins are happy with this arrangement; however, based on a poll, a not insignificant number of competitors prefer a weekly cadence.
-    We will revisit this choice in the future.
+    This choice is not set in stone, particularly with respect to different competition series.
     </p>
     <h3 id="scoring_philosophy">Scoring system</h3>
     <h4 id="zero_score">Ranking strikeouts and terminations</h4>
     The official Hanabi rules, which have been published in several different forms (not only for different rulebook versions, but also for different localizations), offer surprisingly little guidance into how to score strikeouts.
     To summarize across all these different versions, a team that reaches three strikes "loses".
-    In online implementations of Hanabi, such as those on Board Game Arena, keldon.net, and more recently hanabi.live, this has traditionally been represented as a score of 0.
+    In online implementations of Hanabi, such as those on Board Game Arena, keldon.net, and more recently hanab.live, this has traditionally been represented as a score of 0.
     The same is true of terminated games, whose result can be reasonably described in a manner similar to that for strikeouts: namely, "loss".
     </p>
     <p>
     In my humble opinion, assigning these two game finish states a score of 0 is a rather arbitrary choice for doing what is effectively a coercion into a "finished normally" state.
-    As such, I do not value this choice for use in competitions past what it gives in implementation simplicity, since we're pulling game data from hanabi.live.
+    As such, I do not value this choice for use in competitions past what it gives in implementation simplicity, since we're pulling game data from hanab.live.
     </p>
     <p>
     Ranking games that are heterogenous in finish state obviously requires some creativity.
@@ -129,7 +148,7 @@
         <li>There is only one type of situation where it is advantageous for an individual to intentionally strike out or terminate.
             That situation is when it is predicted with high likelihood that a teammate will a) strike out or b) fail to score a remaining possible point.
             The latter is virtually impossible, since even at 0 clues, at least one remaining play can be communicated by a positional discard, regardless of the amount of context or true information on any hand.
-            The former is not impossible, but it is highly improbably to affect the competition rankings in a meaningful way; an intentional termination could at best improve the turns score by 2, and the game score for strikeouts is typically low enough that no other games with that game score are recorded, meaning turns score doesn't even factor in.
+            The former is not impossible, but it is highly improbable to affect the competition rankings in a meaningful way; an intentional termination could at best improve the turns score by 2, and the game score for strikeouts is typically low enough that no other games with that game score are recorded, meaning turns score doesn't even factor in.
         </li>
     </ol>
     </p>
@@ -147,10 +166,10 @@
     Although it is a feel-bad moment to rank last in a deal and receive no matchpoints, same as if you had not competed at all (not to mention that every <em>other</em> team <s>stole your lunch money</s> won matchpoints off you), awarding participatory matchpoints has the following negative consequences:
     <ul>
         <li>It incentivizes <em>bad-faith participation</em>, i.e. creating a table with no intention of actually trying to play the game well.
-            Teams who wouldn't have time to play through a deal could create then immediately terminating a game in order to receive some free matchpoints.
+            Teams who wouldn't have time to play through a deal could create then immediately terminate a game in order to receive some free matchpoints.
             If this happened to multiple teams, there would be a bizarre race-to-one-above-the-bottom, where they would try to barely out-compete each other.
         </li>
-        <li>It inflates each team's <em>fractional matchpoints</em>, i.e. the fraction of available matchpoints that they won, rendering it no longer a direct measurement of win rate.</li>
+        <li>It inflates each team's fractional matchpoints, rendering it no longer a direct measurement of win rate.</li>
     </ul>
     One final consideration is that participation matchpoints are an added complexity.
     In light of all this, we decided to use the traditional matchpoints system, though with a 2-1 allotment of points rather than the 1-½ allotment used by the <a href="https://www.acbl.org/">ACBL</a>.

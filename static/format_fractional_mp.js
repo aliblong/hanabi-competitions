@@ -5,7 +5,7 @@ for (frac_mp of frac_mp_entries) {
     if (text === "") {
         continue;
     }
-    frac_mp.textContent =
+    frac_mp.innerText =
         parseFloat(text) === 1
         ? "1"
         : parseFloat(text).toFixed(3).substring(1);
