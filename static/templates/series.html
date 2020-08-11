@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>Hanabi competitions</title>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--===============================================================================================-->	
+	<!--link rel="icon" type="image/png" href="images/icons/favicon.ico"/-->
+<!--===============================================================================================-->
+	<link rel="stylesheet" type="text/css" href="/static/results.css">
+</head>
+<body>
+<main>
+    <h1>Series: {{series_name}}</h1>
+    <h2>Active competitions</h2>
+    {{#each active_competitions}}
+        <h3>{{competition_name}}</h3>
+        <table>
+          {{#with competition}}
+          <tr>
+            <th>Series</th>
+            {{#each series_names}}
+            <td><a href='/series/{{this}}'>{{this}}</a></td>
+            {{/each}}
+          </tr>
+          {{#with ruleset}}
+          <tr>
+            <th>Competition deadline</th>
+            <td>{{end_datetime}}</td>
+          </tr>
+          <tr>
+            <th>Number of players</th>
+            <td>{{num_players}}</td>
+          </tr>
+          <tr>
+            <th>Variant</th>
+            <td>{{variant_name}}</td>
+          </tr>
+          <tr>
+            <th>Scoring Type</th>
+            <td>{{scoring_type}}</td>
+          </tr>
+          {{/with}}
+          {{/with}}
+          <tr>
+            <th>Time control</th>
+            <td>{{formatted_time_control}}</td>
+          </tr>
+          {{#with competition}}
+          {{#with ruleset}}
+          <tr>
+            <th>Deckplay enabled</th>
+            <td>{{deckplay_enabled}}</td>
+          </tr>
+          <tr>
+            <th>Empty clues enabled</th>
+            <td>{{empty_clues_enabled}}</td>
+          </tr>
+          <tr>
+            <th>Detrimental characters enabled</th>
+            <td>{{characters_enabled}}</td>
+          </tr>
+          <tr>
+            <th>Additional Rules</th>
+            <td>{{additional_rules}}</td>
+          </tr>
+          {{/with}}
+          {{/with}}
+          {{#each create_table_urls}}
+          <tr>
+            <th>Seed {{@index}}</th>
+            <td><a href="{{create_table_url}}">{{base_seed_name}}</a></td>
+          </tr>
+          {{/each}}
+        </table>
+    {{/each}}
+    <h2>Past competitions</h2>
+    <ol>
+        {{#each past_competition_names}}
+        <li><a href='/competitions/{{this}}'>{{this}}</a></li>
+        {{/each}}
+    </ol>
+    <h2>Series Leaderboard</h2>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+            <!--th colspan="{math this.0.players.len "+" 3}"></th>-->
+          <th data-type="text">player name</th>
+          <th data-type="text">score</th><!--(Σ frac. MP)-->
+          <th data-type="text">mean frac. MP</th>
+          {{#each competition_scores_table_headers}}
+          <th data-type="text">{{this}}</th>
+          {{/each}}
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+          {{#each leaderboard_records}}
+          <tr>
+              <td>
+                  {{player_name}}
+              </td>
+              <td class="sum_frac_mp">
+                  {{score}}
+              </td>
+              <td class="frac_mp">
+                  {{mean_frac_mp}}
+              </td>
+              {{#each competition_results}}
+              <td>
+                  <a href='/competitions/{{competition_name}}'><span class="frac_mp">{{frac_mp}}</span></a>
+              </td>
+              {{/each}}
+          </tr>
+          {{/each}}
+      </tbody>
+    </table>
+  </div>
+</main>
+<script src="/static/table_sort.js"></script>
+<script src="/static/format_fractional_mp.js"></script>
+</body>
+</html

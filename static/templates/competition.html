@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>Hanabi competitions</title>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--===============================================================================================-->	
+	<!--link rel="icon" type="image/png" href="images/icons/favicon.ico"/-->
+<!--===============================================================================================-->
+	<link rel="stylesheet" type="text/css" href="/static/results.css">
+</head>
+<body>
+<main>
+    {{#with competition_with_derived_quantities}}
+    <h1>Competition: {{competition_name}}</h1>
+    <table>
+        {{#with competition}}
+        <tr>
+          <th>Series</th>
+          {{#each series_names}}
+          <td><a href='/series/{{this}}'>{{this}}</a></td>
+          {{/each}}
+        </tr>
+        {{#with ruleset}}
+        <tr>
+          <th>Competition deadline</th>
+          <td>{{end_datetime}}</td>
+        </tr>
+        <tr>
+          <th>Number of players</th>
+          <td>{{num_players}}</td>
+        </tr>
+        <tr>
+          <th>Variant</th>
+          <td>{{variant_name}}</td>
+        </tr>
+        <tr>
+          <th>Scoring Type</th>
+          <td>{{scoring_type}}</td>
+        </tr>
+        {{/with}}
+        {{/with}}
+        <tr>
+          <th>Time control</th>
+          <td>{{formatted_time_control}}</td>
+        </tr>
+        {{#with competition}}
+        {{#with ruleset}}
+        <tr>
+          <th>Deckplay enabled</th>
+          <td>{{deckplay_enabled}}</td>
+        </tr>
+        <tr>
+          <th>Empty clues enabled</th>
+          <td>{{empty_clues_enabled}}</td>
+        </tr>
+        <tr>
+          <th>Detrimental characters enabled</th>
+          <td>{{characters_enabled}}</td>
+        </tr>
+        <tr>
+          <th>Additional Rules</th>
+          <td>{{additional_rules}}</td>
+        </tr>
+        {{/with}}
+        {{/with}}
+        <tr>
+          <th>Seeds</th>
+        {{#each create_table_urls}}
+          <td><a href="{{create_table_url}}">{{base_seed_name}}</a></td>
+        {{/each}}
+        </tr>
+    </table>
+    {{/with}}
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+            <!--th colspan="{math this.0.players.len "+" 3}"></th>-->
+          <th colspan="{{competition_with_derived_quantities.competition.ruleset.num_players}}"></th>
+          <th colspan="3" style="text-align:right">seed names:</th>
+          {{#each competition_with_derived_quantities.competition.base_seed_names}}
+          <th colspan="5">{{this}}</th>
+          {{/each}}
+        </tr>
+        <tr>
+          {{#each team_results.0.players}}
+          <th data-type="text" scope="col" role="columnheader">player {{@index}}</th>
+          {{/each}}
+          <th data-type="number" scope="col" role="columnheader">final rank</th>
+          <th data-type="text" scope="col" role="columnheader">frac. MP</th>
+          <th data-type="number" scope="col" role="columnheader">Σ MP</th>
+          {{#each competition_with_derived_quantities.competition.base_seed_names}}
+          <th data-type="number" scope="col" role="columnheader">seed MP</th>
+          <th data-type="text" scope="col" role="columnheader">game ID</th>
+          <th data-type="number" scope="col" role="columnheader">score</th>
+          <th data-type="number" scope="col" role="columnheader">turns</th>
+          <th data-type="number" scope="col" role="columnheader">duration (s)</th>
+          {{/each}}
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+          {{#each team_results}}
+          <tr>
+              {{#each players}}
+              <td>
+                  {{this}}
+              </td>
+              {{/each}}
+              <td>
+                  {{final_rank}}
+              </td>
+              <td class="frac_mp">
+                  {{fractional_mp}}
+              </td>
+              <td>
+                  {{sum_mp}}
+              </td>
+              {{#each game_results}}
+              <td>
+                  {{seed_matchpoints}}
+              </td>
+              <td>
+                  <a href={{replay_url}}>{{site_game_id}}</a>
+              </td>
+              <td>
+                  {{score}}
+              </td>
+              <td>
+                  {{turns}}
+              </td>
+              <td>
+                  {{game_duration_seconds}}
+              </td>
+              {{/each}}
+          </tr>
+          {{/each}}
+      </tbody>
+    </table>
+  </div>
+</main>
+<script src="/static/table_sort.js"></script>
+<script src="/static/format_fractional_mp.js"></script>
+</body>
+</html

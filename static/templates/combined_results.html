@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>Hanabi competitions</title>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--===============================================================================================-->	
+	<!--link rel="icon" type="image/png" href="images/icons/favicon.ico"/-->
+<!--===============================================================================================-->
+	<link rel="stylesheet" type="text/css" href="/static/results.css">
+</head>
+<body>
+<main>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th data-type="text" scope="col" role="columnheader">competition name</th>
+          <th data-type="number" scope="col" role="columnheader">final rank</th>
+          <th data-type="text" scope="col" role="columnheader">frac. MP</th>
+          <th data-type="number" scope="col" role="columnheader">Σ MP</th>
+          <th data-type="text" scope="col" role="columnheader">player name</th>
+          <th data-type="text" scope="col" role="columnheader">seed name</th>
+          <th data-type="number" scope="col" role="columnheader">seed MP</th>
+          <th data-type="text" scope="col" role="columnheader">hanabi.live game ID</th>
+          <th data-type="number" scope="col" role="columnheader">score</th>
+          <th data-type="number" scope="col" role="columnheader">turns</th>
+          <th data-type="text" scope="col" role="columnheader">dt start</th>
+          <th data-type="text" scope="col" role="columnheader">dt end</th>
+          <th data-type="text" scope="col" role="columnheader">char name</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+          {{#each this}}
+          <tr>
+              <td>
+                  {{competition_name}}
+              </td>
+              <td>
+                  {{final_rank}}
+              </td>
+              <td class="frac_mp">
+                  {{fractional_mp}}
+              </td>
+              <td>
+                  {{sum_mp}}
+              </td>
+              <td>
+                  {{player_name}}
+              </td>
+              <td>
+                  {{base_seed_name}}
+              </td>
+              <td>
+                  {{seed_matchpoints}}
+              </td>
+              <td>
+                  <a href={{replay_url}}>{{site_game_id}}</a>
+              </td>
+              <td>
+                  {{score}}
+              </td>
+              <td>
+                  {{turns}}
+              </td>
+              <td>
+                  {{datetime_game_started}}
+              </td>
+              <td>
+                  {{datetime_game_ended}}
+              </td>
+              <td>
+                  {{character_name}}
+              </td>
+          </tr>
+          {{/each}}
+      </tbody>
+    </table>
+  </div>
+</main>
+<script src="/static/table_sort.js"></script>
+<script src="/static/format_fractional_mp.js"></script>
+</body>
+</html
