@@ -391,7 +391,7 @@ create or replace view series_competition_results as (
 );
 
 -- https://wiki.postgresql.org/wiki/Aggregate_Median#median.28anyelement.29
-create or replace function _final_median(anyarray) returns float8 as $$ 
+create or replace function _final_median(anyarray) returns float8 security definer as $$ 
   with q as
   (
      select val
@@ -412,14 +412,12 @@ create or replace function _final_median(anyarray) returns float8 as $$
   ) q2;
 $$ language sql immutable;
 
-create or replace aggregate median(anyelement) (
+create or replace aggregate median(anyelement) security definer (
   sfunc=array_append,
   stype=anyarray,
   finalfunc=_final_median,
   initcond='{}'
 );
-grant execute on function _final_median to hlc_viewer;
-grant execute on function median to hlc_viewer;
 
 create or replace view series_player_scores as (
     select
@@ -441,8 +439,6 @@ create or replace view series_player_scores as (
 
 create or replace function update_computed_competition_standings()
 returns void
--- executes as superuser (postgres); only creator of matview can refresh it
-security definer
 as $$ begin
     refresh materialized view computed_competition_standings;
     return;
@@ -451,7 +447,6 @@ language plpgsql;
 
 create or replace function update_competition_names()
 returns void
-security definer
 as $$ begin
     refresh materialized view competition_names;
     return;
