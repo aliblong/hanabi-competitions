@@ -36,7 +36,7 @@ create table if not exists competitions (
         or (base_time_seconds is null and turn_time_seconds is null)
     )
   , additional_rules text
-  , unique (end_date, num_players, variant_id, scoring_type, time_control_id)
+  , unique (end_date, num_players, variant_id, scoring_type, base_time_seconds, turn_time_seconds)
     -- putting a unique constraint on id and any other columns to be used as a foreign
     -- composite key is required, and tbh I don't fully understand why; if id is the primary
     -- key, its combination with other columns is necessarily unique
