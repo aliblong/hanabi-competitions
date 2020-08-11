@@ -1,14 +1,11 @@
 use std::collections::HashMap;
-use sqlx::{FromRow, postgres::*, Row};
+use sqlx::{FromRow, Row};
 
 use serde::{Serialize, Deserialize};
 use chrono::{Weekday, Duration, Datelike};
 use crate::{DbViewerPool, DbAdminPool, model::{Tx, UtcDateTime}};
 use anyhow::Result;
 use sqlx::postgres::PgRow;
-
-//// This is used with handlebars, hence the use of Vec rather than HashMap
-// pub type CompetitionsGroupedBySeries = Vec<SeriesCompetitions>;
 
 //// This is a huge pain in the ass at the time I'm writing this code
 //#[derive(sqlx::Type, Serialize, Deserialize, Debug)]
@@ -226,6 +223,7 @@ impl PartiallySpecifiedCompetition {
         if self.end_datetime.is_none() {
             let today = chrono::offset::Utc::today();
             // If I'm setting the competition on Mon-Wed, it's probably the current competition
+            // Default period of 2 weeks, ending Monday @ 13:00 UTC, which is just after I wake up
             let days_to_add = match today.weekday() {
                 Weekday::Mon => 14,
                 Weekday::Tue => 13,
@@ -235,7 +233,6 @@ impl PartiallySpecifiedCompetition {
                 Weekday::Sat => 16,
                 Weekday::Sun => 15,
             };
-            // Default competition end time: Monday @ 13:00 UTC, which is just after I wake up
             self.end_datetime = Some((today + Duration::days(days_to_add)).and_hms(13, 0, 0));
         }
         if self.deckplay_enabled.is_none() { self.deckplay_enabled = Some(true) }
@@ -276,38 +273,6 @@ impl PartiallySpecifiedCompetition {
         }
     }
 }
-
-/*
-pub fn group_competitions_by_series(competitions: Vec<CompetitionWithDerivedQuantities>)
--> CompetitionsGroupedBySeries {
-    let mut series_competitions_map =
-        HashMap::<Option<String>, Vec<CompetitionWithDerivedQuantities>>::new();
-    for competition in competitions.into_iter() {
-        let series_names = &competition.competition.series_names;
-        for series_name in &series_names {
-            match series_competitions_map.get_mut(&competition.competition.series_name) {
-                Some(series_competitions) => {
-                    series_competitions.push(competition);
-                }
-                None => {
-                    series_competitions_map.insert(series_name.to_owned(), vec![competition]);
-                }
-            }
-        }
-    }
-    series_competitions_map.into_iter().map(
-        |(series_name_option, competitions)| {
-            let series_name = match series_name_option {
-                Some(name) => name,
-                None => "No associated series".to_owned(),
-            };
-            SeriesCompetitions {
-                series_name,
-                competitions,
-            }
-        }).collect()
-}
-*/
 
 pub async fn add_competitions(
     pool: &DbAdminPool,
@@ -356,7 +321,12 @@ pub async fn get_competition_and_nested_results(
         pool,
         competition_name
     ).await?;
-    Ok(nest_competition_results(competition_with_derived_quantities, competition_flat_results))
+    let mut nested_results = nest_competition_results(
+        competition_with_derived_quantities,
+        competition_flat_results
+    );
+    nested_results.team_results.sort_unstable_by_key(|record| record.final_rank);
+    Ok(nested_results)
 }
 
 pub async fn get_active_competitions(
@@ -567,13 +537,8 @@ fn nest_competition_results(
         while players.len() < competition.ruleset.num_players as usize {
             players.push(None);
         }
-        //results.sort_unstable_by_key(|r| r.as_ref().unwrap().base_seed_name.clone());
         results.sort_unstable_by(|r1,  r2|
             r1.as_ref().unwrap().base_seed_name.cmp(&r2.as_ref().unwrap().base_seed_name));
-        //results.sort_unstable_by(|r| match r {
-        //    Some(a) => a.base_seed_name,
-        //    None => unreachable!(),
-        //});
         for (idx, base_seed_name) in competition.base_seed_names.iter().enumerate() {
             if results.iter().find(
                 |&r| r.is_some() && &r.as_ref().unwrap().base_seed_name == base_seed_name
@@ -602,10 +567,6 @@ fn nest_competition_results(
     }
     competition_nested_results
 }
-
-    // let mut games: Vec<i64> = flat_results.iter().map(|r| r.site_game_id).collect();
-    // seeds.sort_unstable();
-    // seeds.dedup();
 
 async fn add_competition(
     mut tx: Tx,

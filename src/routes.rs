@@ -5,12 +5,10 @@ pub mod games;
 pub mod variants;
 pub mod results;
 
-use actix_web::{delete, get, post, put, web, HttpResponse, Responder, Error, HttpRequest};
-use sqlx::PgPool;
-use serde::Deserialize;
-use std::{env, fs, io::{BufReader, prelude::*}};
+use actix_web::{web, HttpResponse, HttpRequest};
+use std::{fs, io::{BufReader, prelude::*}};
 use actix_http::http::header::Header;
-use actix_web_httpauth::headers::authorization::{self, Scheme};
+use actix_web_httpauth::headers::authorization;
 use std::collections::HashMap;
 use anyhow::Result;
 use thiserror;
@@ -20,8 +18,8 @@ pub struct AdminCredentials(pub HashMap<String, String>);
 
 #[derive(thiserror::Error, Debug)]
 pub enum InsertError {
-    #[error("values could not be inserted")]
-    Values,
+    // #[error("values could not be inserted")]
+    // Values,
     #[error(transparent)]
     Credentials(CredentialsError),
 }
@@ -40,6 +38,7 @@ impl AdminCredentials {
             |lines| {
                 lines.filter_map(|line| {
                     match line.chars().next() {
+                        // Ignore empty lines and lines beginning with a #
                         Some('#') => None,
                         None => None,
                         _ => {

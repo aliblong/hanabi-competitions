@@ -1,4 +1,4 @@
-use actix_web::{get, web, HttpResponse, Error, HttpRequest};
+use actix_web::{get, web, HttpResponse, Error};
 use crate::{
     model::{
         series::get_series_names,

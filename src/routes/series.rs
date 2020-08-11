@@ -29,10 +29,9 @@ async fn get_series(
     match crate::model::series::get_series_view(&db_pool.get_ref(), &series_name, max_num_comps as i64).await {
         Ok(results) => {
             if raw_output_flag.is_some() && raw_output_flag.unwrap() {
-                Ok(HttpResponse::Ok().json(serde_json::to_string(&results).unwrap()))
+                Ok(HttpResponse::Ok().json(&results))
             } else {
                 Ok(HttpResponse::Ok()
-                    //.header("LOCATION", "/static/lobby_browser.html")
                     .content_type("text/html; charset=utf-8")
                     .body(hb.render("series", &results).unwrap()))
             }

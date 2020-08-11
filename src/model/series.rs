@@ -46,8 +46,8 @@ pub struct CompetitionResultRecordSummary {
 #[derive(Serialize, Deserialize)]
 pub struct LeaderboardRecord {
     pub player_name: String,
-    pub sum_mp: f64,
-    pub mean_mp: f64,
+    pub score: f64,
+    pub mean_frac_mp: f64,
     pub competition_results: Vec<Option<CompetitionResultRecordSummary>>,
 }
 
@@ -83,70 +83,78 @@ async fn get_series_leaderboard(
     let leaderboard_aggregate_records = sqlx::query!(
         "select
             player_name
-          , sum(fractional_mp) sum_frac_mp
-          , avg(fractional_mp) mean_frac_mp
-        from series_leaderboards
-        where series_name = $1
-        group by player_name
-        --order by player_name",
+          , score
+          , mean_frac_mp
+        from series_player_scores
+        where series_name = $1",
         series_name,
     ).fetch_all(&pool.0).await?;
-    let mut leaderboard_games = HashMap::new();
-    for record in leaderboard_aggregate_records.into_iter() {
-        let player_name = record.player_name.unwrap();
-        leaderboard_games.insert(
-            player_name,
-            (Some((record.sum_frac_mp.unwrap(), record.mean_frac_mp.unwrap())), vec![])
-        );
-    }
-    let mut num_comps = sqlx::query!(
-        "select max(num_comps) max_num_comps
-        from (
-            select count(*) num_comps
-            from series_leaderboards
-            group by player_name
-        ) _"
-    ).fetch_one(&pool.0).await?.max_num_comps.unwrap();
-    if num_comps <= max_num_comps {
-        let leaderboard_records = sqlx::query!(
-            "select
-                player_name
-              , competition_name
-              , fractional_mp
-            from series_leaderboards
-            where series_name = $1
-            --order by player_name",
-            series_name,
-        ).fetch_all(&pool.0).await?;
-        for record in leaderboard_records.into_iter() {
-            let (_, competitions) = leaderboard_games.get_mut(&record.player_name.unwrap()).unwrap();
-            competitions.push((record.competition_name.unwrap(), record.fractional_mp.unwrap()))
+    if !series_name.starts_with("All-time") {
+        let num_comps = sqlx::query!(
+            "select max(num_comps) max_num_comps
+            from (
+                select count(*) num_comps
+                from series_competition_results
+                group by player_name
+            ) _"
+        ).fetch_one(&pool.0).await?.max_num_comps.unwrap();
+        if num_comps <= max_num_comps {
+            let mut leaderboard_games = HashMap::new();
+            for record in leaderboard_aggregate_records.into_iter() {
+                let player_name = record.player_name.unwrap();
+                leaderboard_games.insert(
+                    player_name,
+                    (Some((record.score.unwrap(), record.mean_frac_mp.unwrap())), vec![])
+                );
+            }
+            let leaderboard_records = sqlx::query!(
+                "select
+                    player_name
+                  , competition_name
+                  , fractional_mp
+                from series_competition_results
+                where series_name = $1",
+                series_name,
+            ).fetch_all(&pool.0).await?;
+            for record in leaderboard_records.into_iter() {
+                let (_, competitions) = leaderboard_games.get_mut(&record.player_name.unwrap()).unwrap();
+                competitions.push((record.competition_name.unwrap(), record.fractional_mp.unwrap()))
+            }
+            let mut records = leaderboard_games.into_iter().map(|(player, record)| {
+                let mut competition_results: Vec<Option<CompetitionResultRecordSummary>> =
+                    record.1.into_iter().map(|result|
+                        Some(CompetitionResultRecordSummary {
+                            competition_name: result.0,
+                            frac_mp: result.1,
+                        })
+                    ).collect();
+                competition_results.extend(
+                    (competition_results.len()..num_comps as usize).map(|_| None)
+                );
+                LeaderboardRecord {
+                    player_name: player,
+                    score: record.0.unwrap().0,
+                    mean_frac_mp: record.0.unwrap().1,
+                    competition_results,
+                }
+            }).collect::<Vec<LeaderboardRecord>>();
+            records.sort_unstable_by(|r1, r2| r2.score.partial_cmp(&r1.score).unwrap());
+            return Ok((
+                records,
+                num_comps,
+            ));
         }
     }
-    else {
-        num_comps = 0;
-    }
-    Ok((
-        leaderboard_games.into_iter().map(|(player, record)| {
-            let mut competition_results: Vec<Option<CompetitionResultRecordSummary>> =
-                record.1.into_iter().map(|result|
-                    Some(CompetitionResultRecordSummary {
-                        competition_name: result.0,
-                        frac_mp: result.1,
-                    })
-                ).collect();
-            competition_results.extend(
-                (competition_results.len()..num_comps as usize).map(|_| None)
-            );
-            LeaderboardRecord {
-                player_name: player,
-                sum_mp: record.0.unwrap().0,
-                mean_mp: record.0.unwrap().1,
-                competition_results,
-            }
-        }).collect(),
-        num_comps,
-    ))
+    let mut records = leaderboard_aggregate_records.into_iter().map(|record| {
+        LeaderboardRecord {
+            player_name: record.player_name.unwrap(),
+            score: record.score.unwrap(),
+            mean_frac_mp: record.mean_frac_mp.unwrap(),
+            competition_results: vec![],
+        }
+    }).collect::<Vec<LeaderboardRecord>>();
+    records.sort_unstable_by(|r1, r2| r2.score.partial_cmp(&r1.score).unwrap());
+    Ok((records, 0))
 }
 
 async fn get_series_active_competitions(

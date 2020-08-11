@@ -31,11 +31,6 @@ pub async fn get_combined_results(
     Ok(result)
 }
 
-pub fn combined_results_to_json(results: Vec<CombinedResult>) -> Result<String> {
-    let jsonified_results = serde_json::to_string(&results)?;
-    Ok(jsonified_results)
-}
-
 // This is quite similar to model::competition::CompetitionFlatResult, but this one is designed
 // to be a raw, complete view, for analysis, where the other is tailored to be a good
 // default view of the results, intended to be nested.

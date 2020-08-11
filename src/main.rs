@@ -2,50 +2,32 @@
 #[macro_use]
 extern crate log;
 
-// import todo module (routes and model)
 mod routes;
 mod model;
 
 use dotenv::dotenv;
-//use itertools;
 use listenfd::ListenFd;
 use actix_web::{web, App, HttpResponse, HttpRequest, HttpServer, FromRequest, http::header};
 use sqlx::PgPool;
 use std::env;
 use anyhow::Result;
 
+// These newtypes are a measure to guard against exposing the db admin role
+// to website viewers.
 #[derive(Clone)]
 pub struct DbViewerPool(pub PgPool);
 #[derive(Clone)]
 pub struct DbAdminPool(pub PgPool);
 
+// Convenient pattern for erroring out on missing env var
 fn get_expected_env_var(name: &str) -> String {
     env::var(name).expect(&*format!("{} must be set (check `.env`)", name))
 }
-
-/*
-// default / handler
-async fn index() -> impl Responder {
-    HttpResponse::Ok().body(r#"
-        Welcome to Actix-web with SQLx Todos example.
-        Available routes:
-        GET /todos -> list of all todos
-        POST /todo -> create new todo, example: { "description": "learn actix and sqlx", "done": false }
-        GET /todo/{id} -> show one todo with requested id
-        PUT /todo/{id} -> update todo with requested id, example: { "description": "learn actix and sqlx", "done": true }
-        DELETE /todo/{id} -> delete todo with requested id
-    "#
-    )
-}
-*/
 
 #[actix_rt::main]
 async fn main() -> Result<()> {
     dotenv().ok();
     env_logger::init();
-
-    // this will enable us to keep application running during recompile: systemfd --no-pid -s http::5000 -- cargo watch -x run
-    let mut listenfd = ListenFd::from_env();
 
     let database_viewer_url = get_expected_env_var("DATABASE_VIEWER_URL");
     let database_admin_url = get_expected_env_var("DATABASE_ADMIN_URL");
@@ -59,33 +41,6 @@ async fn main() -> Result<()> {
     handlebars
         .register_templates_directory(".html", "./static/templates")
         .unwrap();
-    /*
-    handlebars
-        /*
-        .register_script_helper("math", r#"function(lvalue, operator, rvalue, options) {
-    lvalue = parseFloat(lvalue);
-    rvalue = parseFloat(rvalue);
-        
-    return {
-        "+": lvalue + rvalue,
-        "-": lvalue - rvalue,
-        "*": lvalue * rvalue,
-        "/": lvalue / rvalue,
-        "%": lvalue % rvalue
-    }[operator];
-}"#.to_owned())
-        */
-        .register_helper("math", |left, op, right| {
-            match op {
-                "+" => left + right,
-                "-" => left - right,
-                "*" => left * right,
-                "/" => left / right,
-                "%" => left % right,
-            }
-        })
-        .unwrap();
-        */
     let handlebars_ref = web::Data::new(handlebars);
 
     let mut server = HttpServer::new(move || {
@@ -104,21 +59,24 @@ async fn main() -> Result<()> {
                     cfg.limit(100000)
             }))
             .app_data(handlebars_ref.clone())
-            //.route("/", web::get().to(index))
             .configure(routes::init)
+            // static route handling
             .service(actix_files::Files::new("/static", "static").show_files_listing())
-            .service(web::resource("/about").route(web::get().to(|req: HttpRequest| {
+            .service(web::resource("/about").route(web::get().to(|_: HttpRequest| {
                 HttpResponse::Found()
                     .header(header::LOCATION, "static/about.html")
                     .finish()
             })))
-            .service(web::resource("/contact").route(web::get().to(|req: HttpRequest| {
+            .service(web::resource("/contact").route(web::get().to(|_: HttpRequest| {
                 HttpResponse::Found()
                     .header(header::LOCATION, "static/contact.html")
                     .finish()
             })))
     });
 
+    // This tool keeps the application running during recompile:
+    // systemfd --no-pid -s http::5000 -- cargo watch -x run
+    let mut listenfd = ListenFd::from_env();
     server = match listenfd.take_tcp_listener(0)? {
         Some(listener) => server.listen(listener)?,
         None => {

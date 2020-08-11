@@ -321,7 +321,7 @@ create materialized view if not exists computed_competition_standings as (
     left join characters on seed_characters.character_id = characters.id
 );
 
-create or replace view series_leaderboards as (
+create or replace view series_competition_results as (
     with first_n_competitions_by_series_and_player as (
         select
             series.id series_id
@@ -388,6 +388,55 @@ create or replace view series_leaderboards as (
             else true
         end
     )
+);
+
+-- https://wiki.postgresql.org/wiki/Aggregate_Median#median.28anyelement.29
+create or replace function _final_median(anyarray) returns float8 as $$ 
+  with q as
+  (
+     select val
+     from unnest($1) val
+     where val is not null
+     order by 1
+  ),
+  cnt as
+  (
+    select count(*) as c from q
+  )
+  select avg(val)::float8
+  from 
+  (
+    select val from q
+    limit  2 - mod((select c from cnt), 2)
+    offset greatest(ceil((select c from cnt) / 2.0) - 1,0)  
+  ) q2;
+$$ language sql immutable;
+
+create or replace aggregate median(anyelement) (
+  sfunc=array_append,
+  stype=anyarray,
+  finalfunc=_final_median,
+  initcond='{}'
+);
+grant execute on function _final_median to hlc_viewer;
+grant execute on function median to hlc_viewer;
+
+create or replace view series_player_scores as (
+    select
+        player_name
+      , series_name
+      , case
+            when series_name like 'All-time%'
+                then median(fractional_mp) * (1 + log(20, count(fractional_mp)))
+                -- use this factor if we want to stop inflating past 100 competitions
+                -- add an extra 1 to the competitions count so that a player with
+                -- 1 competition has nonzero score
+                --* greatest(log(100, count(fractional_mp) + 1), 1)
+            else sum(fractional_mp)
+        end as score
+      , avg(fractional_mp) mean_frac_mp
+    from series_competition_results
+    group by player_name, series_name
 );
 
 create or replace function update_computed_competition_standings()
