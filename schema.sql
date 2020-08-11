@@ -98,7 +98,7 @@ create table if not exists series (
 );
 
 create table if not exists series_competitions (
-    series_id smallint not null references seriess(id) on delete cascade
+    series_id smallint not null references series(id) on delete cascade
   , competition_id smallint not null references competitions(id) on delete cascade
   , primary key (series_id, competition_id)
 );
