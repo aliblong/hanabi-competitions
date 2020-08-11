@@ -15,7 +15,7 @@ create table if not exists variants (
   , name text not null check(length(name) > 0)
 );
 
-create type if not exists scoring_type as enum ('standard', 'speedrun');
+create type scoring_type as enum ('standard', 'speedrun');
 
 create table if not exists competitions (
     id smallint primary key generated always as identity
@@ -391,7 +391,7 @@ create or replace view series_competition_results as (
 );
 
 -- https://wiki.postgresql.org/wiki/Aggregate_Median#median.28anyelement.29
-create or replace function _final_median(anyarray) returns float8 security definer as $$ 
+create or replace function _final_median(anyarray) returns float8 as $$ 
   with q as
   (
      select val
@@ -412,7 +412,7 @@ create or replace function _final_median(anyarray) returns float8 security defin
   ) q2;
 $$ language sql immutable;
 
-create or replace aggregate median(anyelement) security definer (
+create or replace aggregate median(anyelement) (
   sfunc=array_append,
   stype=anyarray,
   finalfunc=_final_median,
