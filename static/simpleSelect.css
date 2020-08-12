@@ -33,6 +33,7 @@
       margin-top: -4px;
       right: 10px; }
   .simple-select .simple-select-modal {
+    z-index: 999;
     background-color: #fff;
     display: none;
     width: 100%;
