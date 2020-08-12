@@ -60,8 +60,7 @@ async fn get_competition(
             }
         }
         Err(err) => {
-            println!("{:?}", err);
-            Ok(HttpResponse::BadRequest().body("Malformed request"))
+            Ok(HttpResponse::BadRequest().body(format!("{}", err)))
         }
     }
 }

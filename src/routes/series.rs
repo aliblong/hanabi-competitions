@@ -37,8 +37,7 @@ async fn get_series(
             }
         }
         Err(err) => {
-            println!("{:?}", err);
-            Ok(HttpResponse::BadRequest().body("Malformed request"))
+            Ok(HttpResponse::BadRequest().body(format!("{}", err)))
         }
     }
 }

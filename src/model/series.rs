@@ -60,11 +60,31 @@ pub struct SeriesView {
     competition_scores_table_headers: Vec<String>,
 }
 
+async fn verify_series_exists(
+    pool: &DbViewerPool,
+    series_name: &str,
+) -> Result<bool> {
+    match sqlx::query!(
+        "select count(*) cnt
+        from series
+        where name = $1",
+        series_name,
+    ).fetch_one(&pool.0).await?.cnt.unwrap() {
+        1 => Ok(true),
+        0 => Ok(false),
+        // series name is logically unique
+        _ => unreachable!(),
+    }
+}
+
 pub async fn get_series_view(
     pool: &DbViewerPool,
     series_name: &str,
     max_num_comps: i64,
 ) -> Result<SeriesView> {
+    if !verify_series_exists(pool, series_name).await? {
+        return Err(GetSeriesError::NotFound.into());
+    }
     let (leaderboard_records, num_comps) =
         get_series_leaderboard(pool, series_name, max_num_comps).await?;
     Ok(SeriesView {
@@ -76,6 +96,13 @@ pub async fn get_series_view(
             (1..num_comps + 1).map(|i| format!("comp {}", i)).collect(),
     })
 }
+
+#[derive(thiserror::Error, Debug)]
+pub enum GetSeriesError {
+    #[error("No series with that name was found")]
+    NotFound,
+}
+
 
 async fn get_series_leaderboard(
     pool: &DbViewerPool,
@@ -91,14 +118,16 @@ async fn get_series_leaderboard(
         where series_name = $1",
         series_name,
     ).fetch_all(&pool.0).await?;
-    if !series_name.starts_with("All-time") {
+    if !series_name.starts_with("All-time") && leaderboard_aggregate_records.len() != 0 {
         let num_comps = sqlx::query!(
             "select max(num_comps) max_num_comps
             from (
                 select count(*) num_comps
                 from series_competition_results
+                where series_name = $1
                 group by player_name
-            ) _"
+            ) _",
+            series_name,
         ).fetch_one(&pool.0).await?.max_num_comps.unwrap();
         if num_comps <= max_num_comps {
             let mut leaderboard_games = HashMap::new();

@@ -12,7 +12,7 @@ create table if not exists variants (
     id int primary key generated always as identity
     -- https://github.com/Zamiell/hanabi-live/blob/master/data/variants.json
   , site_variant_id int not null check(id >= 0)
-  , name text not null check(length(name) > 0)
+  , name text not null unique check(length(name) > 0)
 );
 
 create type scoring_type as enum ('standard', 'speedrun');
@@ -81,7 +81,7 @@ create table if not exists game_players (
 
 create table if not exists characters (
     id smallint primary key check(id >= 0)
-  , name text not null check(length(name) > 0)
+  , name text not null unique check(length(name) > 0)
 );
 
 create table if not exists seed_characters (
@@ -92,7 +92,7 @@ create table if not exists seed_characters (
 
 create table if not exists series (
     id smallint primary key generated always as identity
-  , name text not null check(length(name) > 0)
+  , name text not null unique check(length(name) > 0)
   , first_n smallint check(coalesce(first_n, 1) > 0)
   , top_n smallint check(coalesce(top_n, 0) <= first_n and coalesce(top_n, 1) > 0)
 );
