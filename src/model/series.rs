@@ -53,6 +53,7 @@ pub struct LeaderboardRecord {
 
 #[derive(Serialize, Deserialize)]
 pub struct SeriesView {
+    series_name: String,
     active_competitions: Vec<CompetitionWithDerivedQuantities>,
     past_competition_names: Vec<String>,
     leaderboard_records: Vec<LeaderboardRecord>,
@@ -67,6 +68,7 @@ pub async fn get_series_view(
     let (leaderboard_records, num_comps) =
         get_series_leaderboard(pool, series_name, max_num_comps).await?;
     Ok(SeriesView {
+        series_name: series_name.to_owned(),
         active_competitions: get_series_active_competitions(pool, series_name).await?,
         past_competition_names: get_series_past_competition_names(pool, series_name).await?,
         leaderboard_records,

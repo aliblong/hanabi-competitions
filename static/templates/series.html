@@ -77,7 +77,7 @@
     <h2>Past competitions</h2>
     <ol>
         {{#each past_competition_names}}
-        <li><a href='/competition/{{this}}'>{{this}}</a></li>
+        <li><a href='/competitions/{{this}}'>{{this}}</a></li>
         {{/each}}
     </ol>
     <h2>Series Leaderboard</h2>
@@ -87,7 +87,7 @@
         <tr>
             <!--th colspan="{math this.0.players.len "+" 3}"></th>-->
           <th data-type="text">player name</th>
-          <th data-type="text">score (Σ frac. MP)</th>
+          <th data-type="text">score</th><!--(Σ frac. MP)-->
           <th data-type="text">mean frac. MP</th>
           {{#each competition_scores_table_headers}}
           <th data-type="text">{{this}}</th>
