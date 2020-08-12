@@ -606,7 +606,7 @@ async fn add_competition(
           , $4
           , $5
           , $6
-          , $7
+          , cast($7 as scoring_type)
           , $8
           , $9
           , $10
