@@ -5,7 +5,7 @@ use crate::{
     DbAdminPool,
 };
 
-#[post("/variant")]
+#[post("/variants")]
 async fn post_variants(
     req: HttpRequest,
     wrapped_db_pool: web::Data<DbAdminPool>,
