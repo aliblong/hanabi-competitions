@@ -29,8 +29,8 @@ create table if not exists competitions (
   , scoring_type scoring_type not null default 'standard'
     -- keeping these under an hour simplifies time formatting, and there should
     -- be no good reason to give a time control longer than an hour
-  , base_time_seconds smallint not null check (base_time_seconds < 3600 and base_time_seconds > 0)
-  , turn_time_seconds smallint not null check (turn_time_seconds < 3600 and turn_time_seconds > 0)
+  , base_time_seconds smallint check (base_time_seconds is null or (base_time_seconds < 3600 and base_time_seconds > 0))
+  , turn_time_seconds smallint check (turn_time_seconds is null or (turn_time_seconds < 3600 and turn_time_seconds > 0))
   , check (
         (base_time_seconds is not null and turn_time_seconds is not null) 
         or (base_time_seconds is null and turn_time_seconds is null)
