@@ -18,8 +18,8 @@ use anyhow::Result;
 #[derive(Serialize, Deserialize)]
 pub struct Series {
     name: String,
-    first_n: i16,
-    top_n: i16,
+    first_n: Option<i16>,
+    top_n: Option<i16>,
 }
 
 pub async fn add_series(
