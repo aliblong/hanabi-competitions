@@ -168,8 +168,8 @@ async fn get_series_active_competitions(
         join competition_names using(competition_id)
         join competitions on competition_id = competitions.id
         where series.name = $1
-            and end_datetime > date('2020-06-01')
-        order by competition_names.name desc"#, //now()",
+            and end_datetime > now()
+        order by competition_names.name desc"#,
         series_name,
     ).fetch_all(&pool.0).await?;
     let series_active_competition_ids: Vec<i16> = series_active_competition_id_records.into_iter().map(
@@ -201,8 +201,8 @@ async fn get_series_past_competition_names(
         join competition_names using(competition_id)
         join competitions on competition_id = competitions.id
         where series.name = $1
-            and end_datetime < date('2020-06-01')
-        order by name desc"#, //now()",
+            and end_datetime < now()
+        order by name desc"#,
         series_name,
     ).fetch_all(&pool.0).await?;
     let series_names = competitions_name_records.into_iter().map(

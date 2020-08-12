@@ -394,7 +394,7 @@ async fn get_active_competition_ids(
     Ok(sqlx::query!(
         r#"select competitions.id
         from competitions
-        where end_datetime > date('2020-06-01')"# //now()",
+        where end_datetime > now()"#
         // , scoring_type as "scoring_type: String"
     ).fetch_all(&pool.0).await?.into_iter().map(|record| record.id).collect())
 }
