@@ -23,7 +23,7 @@ pub struct Series {
 
 #[derive(Serialize, Deserialize)]
 pub struct SeriesView {
-    series_name: String,
+    series: Series,
     active_competitions: Vec<CompetitionWithDerivedQuantities>,
     past_competition_names: Vec<String>,
     leaderboard_records: Vec<LeaderboardRecord>,
@@ -70,13 +70,15 @@ pub async fn get_series_view(
     series_name: &str,
     max_num_comps: i64,
 ) -> Result<SeriesView> {
-    if !verify_series_exists(pool, series_name).await? {
+    // Feels like I either do this, or pattern match and get trapped in an extra scope.
+    let series_result = get_series(pool, series_name).await;
+    if series_result.is_err(){
         return Err(GetSeriesError::NotFound.into());
     }
     let (leaderboard_records, num_comps) =
         get_series_leaderboard(pool, series_name, max_num_comps).await?;
     Ok(SeriesView {
-        series_name: series_name.to_owned(),
+        series: series_result.unwrap(),
         active_competitions: get_series_active_competitions(pool, series_name).await?,
         past_competition_names: get_series_past_competition_names(pool, series_name).await?,
         leaderboard_records,
@@ -236,21 +238,21 @@ async fn get_series_past_competition_names(
     Ok(series_names)
 }
 
-async fn verify_series_exists(
+async fn get_series(
     pool: &DbViewerPool,
     series_name: &str,
-) -> Result<bool> {
-    match sqlx::query!(
-        "select count(*) cnt
+) -> Result<Series> {
+    let series = sqlx::query_as!(
+        Series,
+        "select
+            name,
+            first_n,
+            top_n
         from series
         where name = $1",
         series_name,
-    ).fetch_one(&pool.0).await?.cnt.unwrap() {
-        1 => Ok(true),
-        0 => Ok(false),
-        // series name is logically unique
-        _ => unreachable!(),
-    }
+    ).fetch_one(&pool.0).await?;
+    Ok(series)
 }
 
 async fn add_single_series(

@@ -11,7 +11,7 @@
 </head>
 <body>
 <main>
-    <h1>Series: {{series_name}}</h1>
+    <h1>Series: {{series.name}}</h1>
     <h2>Active competitions</h2>
     {{#each active_competitions}}
         <h3>{{competition_name}}</h3>
@@ -81,6 +81,23 @@
         {{/each}}
     </ol>
     <h2>Series Leaderboard</h2>
+
+    {{#with series}}
+    <table>
+        {{#if first_n}}
+        <tr>
+            <th>first-<em>x</em></th>
+            <td>{{first_n}}
+        </tr>
+        {{/if}}
+        {{#if top_n}}
+        <tr>
+            <th>top-<em>y</em></th>
+            <td>{{top_n}}
+        </tr>
+        {{/if}}
+    </table>
+    {{/with}}
   <div class="table-wrapper">
     <table>
       <thead>
