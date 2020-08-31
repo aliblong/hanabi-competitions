@@ -226,7 +226,7 @@ create materialized view if not exists computed_competition_standings as (
           , base_seed_name
           , (
                 2 * num_seed_participants
-                - (cast(count(*) over(partition by base_seed_name, seed_rank) as int) - 1)
+                - (cast(count(*) over(partition by seed_id, seed_rank) as int) - 1)
                 - 2 * seed_rank
             ) as seed_matchpoints
           , 2 * (num_comp_participants - num_seeds) as max_MP
