@@ -184,7 +184,7 @@ create materialized view if not exists computed_competition_standings as (
         from game_participation
     ),
     selected_game_ids as (
-        select game_id
+        select distinct game_id
         from prioritized_games
         where priority = 1
     ),
