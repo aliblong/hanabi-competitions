@@ -183,6 +183,11 @@ create materialized view if not exists computed_competition_standings as (
             ) priority
         from game_participation
     ),
+    selected_game_ids as (
+        select game_id
+        from prioritized_games
+        where priority = 1
+    ),
     games_selected as (
         select
             competition_id
@@ -207,11 +212,7 @@ create materialized view if not exists computed_competition_standings as (
           , cast(count(*) over(partition by seed_id) as int) num_seed_participants
           , cast(count(*) over(partition by competition_id) as int) num_comp_participants
         from base_cte
-        where not exists (
-                select p.game_id
-                from prioritized_games p
-                where priority > 1 and p.game_id = base_cte.game_id
-            )
+        join selected_game_ids using(game_id)
     ),
     competition_num_unique_seeds as (
         select competitions.id, count(distinct competition_seeds.id) num_seeds
