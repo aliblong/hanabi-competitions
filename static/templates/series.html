@@ -20,7 +20,7 @@
           <tr>
             <th>Series</th>
             {{#each series_names}}
-            <td><a href='/series/{{this}}'>{{this}}</a></td>
+            <td><a href='/series/{{this}}' target="_blank">{{this}}</a></td>
             {{/each}}
           </tr>
           {{#with ruleset}}
@@ -69,7 +69,7 @@
           {{#each create_table_urls}}
           <tr>
             <th>Seed {{@index}}</th>
-            <td><a href="{{create_table_url}}">{{base_seed_name}}</a></td>
+            <td><a href="{{create_table_url}}" target="_blank">{{base_seed_name}}</a></td>
           </tr>
           {{/each}}
         </table>
@@ -77,7 +77,7 @@
     <h2>Past competitions</h2>
     <ol>
         {{#each past_competition_names}}
-        <li><a href='/competitions/{{this}}'>{{this}}</a></li>
+        <li><a href='/competitions/{{this}}' target="_blank">{{this}}</a></li>
         {{/each}}
     </ol>
     <h2>Series Leaderboard</h2>
@@ -125,7 +125,7 @@
               </td>
               {{#each competition_results}}
               <td>
-                  <a href='/competitions/{{competition_name}}'><span class="frac_mp">{{frac_mp}}</span></a>
+                  <a href='/competitions/{{competition_name}}' target="_blank"><span class="frac_mp">{{frac_mp}}</span></a>
               </td>
               {{/each}}
           </tr>
