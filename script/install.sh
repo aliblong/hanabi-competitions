@@ -4,9 +4,10 @@
 # on how to stand up the application.
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+repo_root_dir=$script_dir/..
 
 # db setup
-source ${script_dir}/.env
+source ${repo_root_dir}/.env
 sudo apt install postgresql build-essential libssl-dev pkg-config
 sudo -u postgres psql -c "create database $DB_NAME"
 sudo -u postgres psql -c "
