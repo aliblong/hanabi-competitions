@@ -34,3 +34,16 @@ body {
 .active {
   background-color: #4CAF50;
 }
+
+.header {
+  /* I didn't figure out how to make it use the color of the outer class*/
+  color: #000000;
+}
+
+.header:link {
+  text-decoration: none;
+}
+
+.header:visited {
+  text-decoration: none;
+}

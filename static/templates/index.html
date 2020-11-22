@@ -18,7 +18,7 @@
     </ul>
 <main>
     <h1>Hanabi Competitions</h1>
-    <h2>Find a series leaderboard</h2>
+    <h2 id="series_leaderboards">Find a series leaderboard</h2>
     <form id="get_series"
         target="_blank">
     <select id="select_series" onchange="get_series(this.form)">
@@ -27,7 +27,7 @@
         {{/each}}
     </select>
     </form>
-    <h2>Get results for a competition</h2>
+    <h2 id="competition_leaderboards">Get results for a competition</h2>
     <form id="get_competition_results_nested"
         target="_blank">
     <select id="select_competition" onchange="get_competition_results_nested(this.form)">
@@ -42,7 +42,7 @@
         <input type="submit" value="Submit">
     </form>
     <a href="/about#howto_search_across_competitions" target="_blank">Guide to using this feature</a>
-    <h2>Active competitions</h2>
+    <h2 id="active_competitions">Active competitions</h2>
     {{#each active_competitions}}
         <h3>{{competition_name}}</h3>
         <table>
