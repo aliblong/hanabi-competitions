@@ -28,6 +28,8 @@ main {
   background-attachment: local, local, scroll, scroll;
 }
 
+.results-wrapper tr:nth-child(even) {background-color: #e8e8e8;}
+
 tr {
   border-bottom: 1px solid;
 }
