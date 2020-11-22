@@ -5,7 +5,7 @@ main {
   align-items: center;
 }
 
-.table-wrapper {
+.results-wrapper {
   overflow: auto;
   max-width: 100%;
   background: linear-gradient(to right, white 30%, rgba(255, 255, 255, 0)),
@@ -38,6 +38,7 @@ th {
   white-space: nowrap;
   cursor: pointer;
 }
+
 
 th,
 td {
