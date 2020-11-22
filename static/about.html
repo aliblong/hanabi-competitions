@@ -22,7 +22,10 @@
     This website is used to organize events where players self-assemble into teams to compete on a set of <a href="https://en.wikipedia.org/wiki/Hanabi_(card_game)">Hanabi</a> deals.
     We currently only support play on <a href="https://hanab.live">hanab.live</a>.
     </p>
-    <h2>How it works</h2>
+    <h2 id="how_it_works"><a href="#how_it_works" class="header">
+        How it works
+        </a>
+    </h2>
     <p>
     Check <a href="/">the homepage</a> for details of active competitions.
     We also encourage you to join the hanab.live <a href="https://discord.gg/FADvkJp">Discord server</a>, where new competitions and competition results are announced (refer to the #hc-* channels there).
@@ -33,21 +36,21 @@
         <li>Create an account on hanab.live (it's as simple as entering a username and password).</li>
         <li>Organize a team of the number of players specified by the competition rules.</li>
         <li>For each competition deal, have a player create a table on hanab.live by following the links found on <a href="/">the homepage</a> for that competition.
-            <a href="#table_creation_params">Useful tip.</a></li>
+            <a href="#table_creation_parameters">Useful tip.</a></li>
     </ol>
     That's it.
     Game results are collected automatically.
     Final competition standings are posted following the conclusion of the competition period.
     </p>
-    <h2>Scoring</h2>
-    <h3>Competition scoring system</h3>
+    <h2 id="scoring"><a href="#scoring" class="header">Scoring</a></h2>
+    <h3 id="competition_scoring_system"><a href="#competition_scoring_system" class="header">Competition scoring system</a></h3>
     <p>
     Competition scoring is based on the <a href="https://en.wikipedia.org/wiki/Bridge_scoring#Matchpoint_scoring">matchpoints</a> system used in bridge.
     A team gets 2 points for each team they beat, and 1 point for each team they tie.
     <a href="#scoring_philosophy">Null results, i.e. when a team plays some, but not all of the competition deals, are not "beaten".</a>
-    However, ranking is done on an <em>individual</em> basis, in order to account for teams that for whatever reason have to change members in the middle of a competitions; regardless, we recommend playing with the same team (and on <a href="#aliases">the same hanab.live accounts</a>) for each game.
+    However, ranking is done on an <em>individual</em> basis, in order to account for teams that for whatever reason have to change members in the middle of a competitions; regardless, we recommend playing with the same team (and on <a href="#player_aliases">the same hanab.live accounts</a>) for each game.
     </p>
-    <h3>Game result ranking</h3>
+    <h3 id="game_result_ranking"><a href="#game_result_ranking" class="header">Game result ranking</a></h3>
     <p>
     There are two types of game result ranking; each competition will use one of them:
     <ol>
@@ -56,7 +59,7 @@
     </ol>
     Game score is the number of cards successfully played by the end of the game, despite that hanab.live <a href="#zero_score">assigns a score of 0 to strikeouts and terminations</a>.
     </p>
-    <h3>Competition series</h3>
+    <h3 id="competition_series"><a href="#competition_series" class="header">Competition series</a></h3>
     <p>
     A <em>series</em> is a collection of competitions.
     Each participant in a series is scored according to the sum of <em>fractional matchpoints</em> — the fraction of available matchpoints won in a competition — achieved by that player across eligible competitions.
@@ -66,7 +69,7 @@
     <p>
     There are also special <em>all-time</em> leaderboards, which consider every competition in history matching some characteristic, but use the median score across all of them, scaled up by a function sublinear in the number of played competitions (to prevent camping on a small number of high outlier performances).
     </p>
-    <h2>Universal competition rules</h2>
+    <h2 id="universal_competition_rules"><a href="#universal_competition_rules" class="header">Universal competition rules</a></h2>
     <p>
     <ol>
         <li>Teammates may not communicate by any means except allowed game actions.</li>
@@ -75,14 +78,14 @@
     </ol>
     We do not plan to proctor competition games, so obviously this is based on a code of honour.
     </p>
-    <h2 id="aliases">Player aliases</h2>
+    <h2 id="player_aliases"><a href="#player_aliases" class="header">Player aliases</a></h2>
     <p>
     It is common for a player to make several different accounts on hanab.live.
     Although we insist that you use the same account for all your competition play, we recognize that mistakes happen.
     If you accidentally use an alternate account, <a href="/contact">contact an administrator</a>, providing the name of your main account, as well the names of all alternate accounts you may have used (indicating clearly which is the main account).
     We will update your results accordingly.
     </p>
-    <h2 id="table_creation_params">Table creation parameters</h2>
+    <h2 id="table_creation_parameters"><a href="#table_creation_parameters" class="header">Table creation parameters</a></h2>
     There are two additional parameters that you may wish to set when you create a table using the generated links on <a href="/">the homepage</a>.
     These are <em>table password</em> and <em>card cycling</em>; if you don't know what the latter is, don't worry about it.
     They can respectively be set by appending the following snippets to the end of the url:
@@ -90,7 +93,7 @@
         <li>&password=myurlencodedpassword</li>
         <li>&cardCycle=true</li>
     </ul>
-    <h2 id="howto_search_across_competitions">Searching across competitions</h2>
+    <h2 id="howto_search_across_competitions"><a href="#howto_search_across_competitions" class="header">Searching across competitions</a></h2>
     You can search across the entire set of competition games using arbitrary SQL constituting a WHERE clause.
     Here are the columns you can constrain:
     <ul>
@@ -109,16 +112,16 @@
         <li>datetime_game_ended</li>
         <li>character_name</li>
     </ul>
-    <h2>Competition design philosophy</h2>
-    <h3 id="n_turns">Competition cadence</h3>
+    <h2 id="competition_design_philosophy"><a href="#competition_design_philosophy" class="header">Competition design philosophy</a></h2>
+    <h3 id="n_turns"><a href="#n_turns" class="header">Competition cadence</a></h3>
     <p>
     We started with a weekly cadence for the competitions, but found it became exhausting to find time for not only playing the deals, but also practising under the ruleset and developing specialized strategies.
     We now run at a biweekly cadence.
     All of the admins are happy with this arrangement; however, based on a poll, a not insignificant number of competitors prefer a weekly cadence.
     This choice is not set in stone, particularly with respect to different competition series.
     </p>
-    <h3 id="scoring_philosophy">Scoring system</h3>
-    <h4 id="zero_score">Ranking strikeouts and terminations</h4>
+    <h3 id="scoring_philosophy"><a href="#scoring_philosophy" class="header">Scoring system</a></h3>
+    <h4 id="ranking_strikeouts_and_terminations"><a href="#ranking_strikeouts_and_terminations" class="header">Ranking strikeouts and terminations</a></h4>
     The official Hanabi rules, which have been published in several different forms (not only for different rulebook versions, but also for different localizations), offer surprisingly little guidance into how to score strikeouts.
     To summarize across all these different versions, a team that reaches three strikes "loses".
     In online implementations of Hanabi, such as those on Board Game Arena, keldon.net, and more recently hanab.live, this has traditionally been represented as a score of 0.
@@ -156,7 +159,7 @@
     With all that said, our chosen solution seems to satisfy the best balance of performance measurement fidelity and simplicity.
     There are several slightly different approaches that are also reasonable, but unless you think you have a <em>very</em> compelling reason why one is better than the status quo, we'd recommend that you not start a discussion on this topic.
     </p>
-    <h4>Accounting for null results</h4>
+    <h4 id="accounting_for_null_results"><a href="#accounting_for_null_results" class="header">Accounting for null results</a></h4>
     <p>
     There's a different type of game result than those discussed in the previous section.
     This is namely the <em>null result</em>, i.e. when a competing team plays in not all of the deals (a team has to play in at least one deal to be considered as having competed in a competition).
@@ -174,7 +177,7 @@
     One final consideration is that participation matchpoints are an added complexity.
     In light of all this, we decided to use the traditional matchpoints system, though with a 2-1 allotment of points rather than the 1-½ allotment used by the <a href="https://www.acbl.org/">ACBL</a>.
     </p>
-    <h4 id="n_turns">Number of turns taken as a score</h4>
+    <h4 id="n_turns"><a href="#n_turns" class="header">Number of turns taken as a score</a></h4>
     <p>
     Our initial ideas for scoring Hanabi Competitions mostly involved some combination of <em>cards left in deck</em>, <em>clues left</em>, and <em>final round turns taken</em>.
     Treating clues and deck size differently leads to some weird tensions in lategame decision-making, as we learned from competitions held by <em>a certain other Hanabi group that shall remain nameless</em>.
