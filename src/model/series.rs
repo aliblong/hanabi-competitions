@@ -32,6 +32,7 @@ pub struct SeriesView {
 
 #[derive(Serialize, Deserialize)]
 pub struct LeaderboardRecord {
+    pub rank: i64,
     pub player_name: String,
     pub score: f64,
     pub mean_frac_mp: f64,
@@ -108,7 +109,8 @@ async fn get_series_leaderboard(
 ) -> Result<(Vec<LeaderboardRecord>, i64)> {
     let leaderboard_aggregate_records = sqlx::query!(
         "select
-            player_name
+            rank
+          , player_name
           , score
           , mean_frac_mp
         from series_player_scores
@@ -132,7 +134,14 @@ async fn get_series_leaderboard(
                 let player_name = record.player_name.unwrap();
                 leaderboard_games.insert(
                     player_name,
-                    (Some((record.score.unwrap(), record.mean_frac_mp.unwrap())), vec![])
+                    (
+                        Some((
+                            record.rank.unwrap(),
+                            record.score.unwrap(),
+                            record.mean_frac_mp.unwrap(),
+                        )),
+                        vec![]
+                    ),
                 );
             }
             let leaderboard_records = sqlx::query!(
@@ -159,10 +168,12 @@ async fn get_series_leaderboard(
                 competition_results.extend(
                     (competition_results.len()..num_comps as usize).map(|_| None)
                 );
+                let (rank, score, mean_frac_mp) = record.0.unwrap();
                 LeaderboardRecord {
+                    rank,
                     player_name: player,
-                    score: record.0.unwrap().0,
-                    mean_frac_mp: record.0.unwrap().1,
+                    score,
+                    mean_frac_mp,
                     competition_results,
                 }
             }).collect::<Vec<LeaderboardRecord>>();
@@ -175,6 +186,7 @@ async fn get_series_leaderboard(
     }
     let mut records = leaderboard_aggregate_records.into_iter().map(|record| {
         LeaderboardRecord {
+            rank: record.rank.unwrap(),
             player_name: record.player_name.unwrap(),
             score: record.score.unwrap(),
             mean_frac_mp: record.mean_frac_mp.unwrap(),

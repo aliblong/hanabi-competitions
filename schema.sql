@@ -421,21 +421,30 @@ create or replace aggregate median(anyelement) (
 );
 
 create or replace view series_player_scores as (
+    with base_view as (
+        select
+            player_name
+          , series_name
+          , case
+                when series_name like 'All-time%'
+                    then median(fractional_mp) * (1 + log(20, count(fractional_mp)))
+                    -- use this factor if we want to stop inflating past 100 competitions
+                    -- add an extra 1 to the competitions count so that a player with
+                    -- 1 competition has nonzero score
+                    --* greatest(log(100, count(fractional_mp) + 1), 1)
+                else sum(fractional_mp)
+            end as score
+          , avg(fractional_mp) mean_frac_mp
+        from series_competition_results
+        group by player_name, series_name
+    )
     select
-        player_name
+        rank() over(partition by series_name order by score desc) rank
+      , player_name
       , series_name
-      , case
-            when series_name like 'All-time%'
-                then median(fractional_mp) * (1 + log(20, count(fractional_mp)))
-                -- use this factor if we want to stop inflating past 100 competitions
-                -- add an extra 1 to the competitions count so that a player with
-                -- 1 competition has nonzero score
-                --* greatest(log(100, count(fractional_mp) + 1), 1)
-            else sum(fractional_mp)
-        end as score
-      , avg(fractional_mp) mean_frac_mp
-    from series_competition_results
-    group by player_name, series_name
+      , score
+      , mean_frac_mp
+    from base_view
 );
 
 create or replace function update_computed_competition_standings()

@@ -103,6 +103,7 @@
       <thead>
         <tr>
             <!--th colspan="{math this.0.players.len "+" 3}"></th>-->
+          <th data-type="number">rank</th>
           <th data-type="text">player name</th>
           <th data-type="text">score</th><!--(Σ frac. MP)-->
           <th data-type="text">mean frac. MP</th>
@@ -114,6 +115,9 @@
       <tbody id="tableBody">
           {{#each leaderboard_records}}
           <tr>
+              <td>
+                  {{rank}}
+              </td>
               <td>
                   {{player_name}}
               </td>
