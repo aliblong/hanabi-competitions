@@ -14,19 +14,26 @@ for (var i = 0; i < num_headers; i++) {
 const sort = (header, col, type) => {
   let rowCount = rows.length
   rows.sort((a, b) => {
+    let a_val = a.children[col].innerText,
+        b_val = b.children[col].innerText;
     // set empty cells to consistently sort lower than non-empty cells
-    if (b.children[col].innerText === "") {
-      return true;
+    if (a_val === "" && b_val === "") {
+      return 0;
     }
-    if (type === 'text') {
+    else if (a_val === "" && b_val !== "") {
+      return -orders[col];
+    }
+    else if (a_val !== "" && b_val === "") {
+      return orders[col];
+    }
+    else if (type === 'text') {
       // I modified this to be much simpler, and now it also works better
-      let i = a.children[col].innerText,
-        j = b.children[col].innerText
-      return i === j ? 0 : i > j ? orders[col] : -orders[col]
-    } else if (type === 'number') {
-      let i = parseInt(a.children[col].firstChild.nodeValue),
-        j = parseInt(b.children[col].firstChild.nodeValue)
-      return i === j ? 0 : i > j ? orders[col] : -orders[col]
+      return a_val === b_val ? 0 : a_val > b_val ? orders[col] : -orders[col];
+    }
+    else if (type === 'number') {
+      let a_int = parseInt(a.children[col].firstChild.nodeValue),
+          b_int = parseInt(b.children[col].firstChild.nodeValue);
+      return a_int === b_int ? 0 : a_int > b_int ? orders[col] : -orders[col];
     }
   })
   orders[col] *= -1
