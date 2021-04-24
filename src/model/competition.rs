@@ -420,7 +420,8 @@ pub async fn competition_with_derived_quantities_from_ruleset_with_ids(
     ).fetch_all(&pool.0).await?.into_iter().map(|record| record.name).collect();
     let base_seed_name_records = sqlx::query!(
         "select base_name
-        from competition_seeds
+        from seeds
+        join competition_seeds on seeds.id = competition_seeds.seed_id
         where
             competition_id = $1
             and variant_id = $2
@@ -648,22 +649,30 @@ async fn add_competition(
     }
 
     for base_seed_name in competition.base_seed_names {
-        sqlx::query!(
-            "INSERT INTO competition_seeds (
-                competition_id
-              , num_players
+        let seed_id = sqlx::query!(
+            "INSERT INTO seeds (
+                num_players
               , variant_id
               , base_name
             ) VALUES (
                 $1
               , $2
               , $3
-              , $4
-            )",
-            competition_id,
+            ) RETURNING id",
             ruleset.num_players,
             variant_id,
             base_seed_name,
+        ).fetch_one(&mut tx).await?.id;
+        sqlx::query!(
+            "INSERT INTO competition_seeds (
+                competition_id
+              , seed_id
+            ) VALUES (
+                $1
+              , $2
+            )",
+            competition_id,
+            seed_id,
         ).execute(&mut tx).await?;
     }
     Ok(tx)

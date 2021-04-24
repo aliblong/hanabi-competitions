@@ -74,8 +74,8 @@ pub async fn select_seed_id(
     num_players: i16,
 ) -> Result<(Tx, i16)> {
     let seed_id = sqlx::query!(
-        "SELECT competition_seeds.id
-        FROM competition_seeds
+        "SELECT seeds.id
+        FROM seeds
         JOIN variants on variant_id = variants.id
         WHERE
             base_name = $1

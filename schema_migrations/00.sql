@@ -46,13 +46,8 @@ create table if not exists competitions (
 create table if not exists competition_seeds (
     id smallint primary key generated always as identity
   , competition_id smallint not null
-  , seed_id smallint not null
-  , foreign key (competition_id) references competitions(id) on delete cascade
-  , foreign key (seed_id) references seeds(id) on delete cascade
-)
-
-create table if not exists seeds (
-    num_players smallint not null
+  , num_players smallint not null
+  , foreign key (competition_id, num_players) references competitions (id, num_players) on delete cascade
   , variant_id int not null references variants(id)
   , base_name text not null check(length(base_name) > 0)
   , unique (num_players, variant_id, base_name)
@@ -140,8 +135,8 @@ create materialized view if not exists computed_competition_standings as (
     with base_cte as (
         select
             competitions.id competition_id
-          , seeds.id seed_id
-          , seeds.base_name base_seed_name
+          , competition_seeds.id seed_id
+          , competition_seeds.base_name base_seed_name
           , games.id game_id
             -- if we start allowing play on different sites, revisit this
           , concat('https://hanab.live/replay/', games.site_game_id) replay_URL
@@ -153,8 +148,7 @@ create materialized view if not exists computed_competition_standings as (
           , competitions.scoring_type
         from competitions
         join competition_seeds on competition_seeds.competition_id = competitions.id
-        join seeds on competition_seeds.seed_id = seeds.id
-        join games on seeds.id = games.seed_id
+        join games on competition_seeds.id = games.seed_id
         where games.datetime_ended < competitions.end_datetime
     ),
     game_participation as (
@@ -221,10 +215,9 @@ create materialized view if not exists computed_competition_standings as (
         join selected_game_ids using(game_id)
     ),
     competition_num_unique_seeds as (
-        select competitions.id, count(distinct seeds.id) num_seeds
+        select competitions.id, count(distinct competition_seeds.id) num_seeds
         from competitions
         join competition_seeds on competition_seeds.competition_id = competitions.id
-        join seeds on competition_seeds.seed_id = seeds.id
         group by competitions.id
     ),
     computed_mp as (
