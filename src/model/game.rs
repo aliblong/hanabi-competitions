@@ -3,32 +3,20 @@ use serde::{Serialize, Deserialize};
 use crate::model::{UtcDateTime, Date, Tx};
 
 #[derive(thiserror::Error, Debug)]
-pub enum CompetitionGamesError {
+pub enum SeedGamesError {
     #[error("Consistency error in competition results: {0}")]
     Consistency(String),
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct CompetitionGames {
-    pub num_players: i16,
-    // need the variant ID at the point of retrieving games anyway, since it constitutes part
-    // of the full seed name
-    pub variant_id: i32,
-    pub end_date: Date,
-    pub seeds_games: Vec<SeedGames>
-}
-
-impl CompetitionGames {
-    pub fn validate(&self) -> Result<(), CompetitionGamesError> {
+impl SeedGames {
+    pub fn validate(&self) -> Result<(), SeedGamesError> {
         let num_players = self.num_players;
-        for seed_games in &self.seeds_games {
-            for game_results in &seed_games.games {
-                if game_results.players.len() != num_players as usize
-                {
-                    return Err(CompetitionGamesError::Consistency(format!(
-                        "num_players = {}; players = {:?}", num_players, &game_results.players
-                    )));
-                }
+        for game_results in &self.games {
+            if game_results.players.len() != num_players as usize
+            {
+                return Err(SeedGamesError::Consistency(format!(
+                    "num_players = {}; players = {:?}", num_players, &game_results.players
+                )));
             }
         }
         Ok(())
@@ -37,6 +25,8 @@ impl CompetitionGames {
 
 #[derive(Serialize, Deserialize)]
 pub struct SeedGames {
+    pub num_players: i16,
+    pub variant_id: i32,
     pub base_seed_name: String,
     pub games: Vec<Game>,
 }
@@ -51,41 +41,58 @@ pub struct Game {
     pub datetime_ended: UtcDateTime,
 }
 
-pub async fn add_competitions_games(
+pub async fn add_seeds_games(
     pool: &super::super::DbAdminPool,
-    competitions_games: &Vec<CompetitionGames>,
+    seeds_games: &Vec<SeedGames>,
 ) -> Result<()> {
     // if a single competition causes an error, don't commit any
     let mut tx = pool.0.begin().await?;
-    for games in competitions_games {
+    for seed_games in seeds_games {
         // I'd prefer to use references throughout, but I don't know a better pattern that would
         // allow me to pass the same mutable borrow to multiple functions.
-        tx = add_competition_games(tx, games).await?;
+        tx = add_seed_games(tx, seed_games).await?;
     }
     sqlx::query("select update_computed_competition_standings()").execute(&mut tx).await?;
     tx.commit().await?;
     Ok(())
 }
 
-pub async fn select_seed_id(
+pub async fn upsert_seed(
     mut tx: Tx,
-    base_seed_name: &str,
-    variant_id: i32,
     num_players: i16,
+    variant_id: i32,
+    base_seed_name: &str,
 ) -> Result<(Tx, i16)> {
     let seed_id = sqlx::query!(
-        "SELECT seeds.id
-        FROM seeds
-        JOIN variants on variant_id = variants.id
-        WHERE
-            base_name = $1
-            and variants.site_variant_id = $2
-            and num_players = $3
+        "WITH new_seed AS(
+            INSERT INTO seeds (
+                num_players
+              , variant_id
+              , base_name
+            ) VALUES (
+                $1
+              , $2
+              , $3
+            )
+            ON CONFLICT DO NOTHING
+            RETURNING id
+        )
+        SELECT COALESCE(
+            (select id from new_seed)
+          , (select seeds.id
+                FROM seeds
+                JOIN variants on variant_id = variants.id
+                WHERE
+                    num_players = $1
+                    and variants.site_variant_id = $2
+                    and base_name = $3
+            )
+        ) id
         ",
-        base_seed_name,
-        variant_id,
         num_players,
-    ).fetch_one(&mut tx).await?.id;
+        variant_id,
+        base_seed_name,
+    ).fetch_one(&mut tx).await?.id.unwrap();
     Ok((tx, seed_id))
 }
 
@@ -162,40 +169,38 @@ pub async fn insert_game_players(
     Ok(tx)
 }
 
-pub async fn add_competition_games(
+pub async fn add_seed_games(
     mut tx: Tx,
-    competition_games: &CompetitionGames,
+    seed_games: &SeedGames,
 ) -> Result<Tx> {
-    for seed_games in &competition_games.seeds_games {
-        // This pattern is not the most ergonomic; revisit it if this RFC lands:
-        // https://github.com/rust-lang/rfcs/pull/2909
-        let tx_and_seed_id = select_seed_id(
+    // This pattern is not the most ergonomic; revisit it if this RFC lands:
+    // https://github.com/rust-lang/rfcs/pull/2909
+    let tx_and_seed_id = upsert_seed(
+        tx,
+        seed_games.num_players,
+        seed_games.variant_id,
+        &seed_games.base_seed_name,
+    ).await?;
+    tx = tx_and_seed_id.0;
+    let seed_id = tx_and_seed_id.1;
+
+    for game in &seed_games.games {
+        let tx_and_player_ids = upsert_players(tx, &game.players).await?;
+        tx = tx_and_player_ids.0;
+        let player_ids = tx_and_player_ids.1;
+        let tx_and_game_id = insert_game(
             tx,
-            &seed_games.base_seed_name,
-            competition_games.variant_id,
-            competition_games.num_players,
+            &game,
+            seed_id,
         ).await?;
-        tx = tx_and_seed_id.0;
-        let seed_id = tx_and_seed_id.1;
+        tx = tx_and_game_id.0;
+        let game_id = tx_and_game_id.1;
 
-        for game in &seed_games.games {
-            let tx_and_player_ids = upsert_players(tx, &game.players).await?;
-            tx = tx_and_player_ids.0;
-            let player_ids = tx_and_player_ids.1;
-            let tx_and_game_id = insert_game(
-                tx,
-                &game,
-                seed_id,
-            ).await?;
-            tx = tx_and_game_id.0;
-            let game_id = tx_and_game_id.1;
-
-            tx = insert_game_players(
-                tx,
-                game_id,
-                &player_ids
-            ).await?;
-        }
+        tx = insert_game_players(
+            tx,
+            game_id,
+            &player_ids
+        ).await?;
     }
     Ok(tx)
 }

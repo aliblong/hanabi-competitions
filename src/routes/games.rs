@@ -1,6 +1,6 @@
 use actix_web::{post, web, HttpResponse, Error, HttpRequest};
 use crate::{
-    model::game::{add_competitions_games, CompetitionGames},
+    model::game::{add_seeds_games, SeedGames},
     routes::{authenticate, AdminCredentials},
     DbAdminPool,
 };
@@ -10,7 +10,7 @@ async fn post_games(
     req: HttpRequest,
     wrapped_db_pool: web::Data<DbAdminPool>,
     wrapped_admin_credentials: web::Data<AdminCredentials>,
-    wrapped_json_payload: web::Json<Vec<CompetitionGames>>,
+    wrapped_json_payload: web::Json<Vec<SeedGames>>,
 ) -> Result<HttpResponse, Error> {
     match authenticate(&req, &wrapped_admin_credentials.into_inner()).await {
         Err(resp) => return Ok(resp.build_credentials_error_response()),
@@ -23,7 +23,7 @@ async fn post_games(
             Err(_) => return Ok(HttpResponse::BadRequest().body("Competition results are malformed.")),
         }
     }
-    match add_competitions_games(
+    match add_seeds_games(
         &wrapped_db_pool.into_inner(),
         &competitions_results
     ).await {

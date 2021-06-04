@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
             }))
             .app_data(
                 // change json extractor configuration
-                web::Json::<Vec<model::game::CompetitionGames>>::configure(|cfg| {
+                web::Json::<Vec<model::game::SeedGames>>::configure(|cfg| {
                     cfg.limit(100000)
             }))
             .app_data(handlebars_ref.clone())
