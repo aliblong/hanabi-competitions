@@ -48,7 +48,7 @@ impl CompetitionWithDerivedQuantities {
                 let turn_time_duration =
                     chrono::Duration::seconds(time_control.turn_time_seconds as i64);
                 format!(
-                    "{}:{} + {}:{}",
+                    "{}:{:0>2} + {}:{:0>2}",
                     base_time_duration.num_minutes(), 
                     base_time_duration.num_seconds() % 60, 
                     turn_time_duration.num_minutes(), 
